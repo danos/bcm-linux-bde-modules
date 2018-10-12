@@ -85,6 +85,9 @@ KERNEL_BDE :=$(DEST_DIR)/$(KERNEL_BDE_LOCAL)
 USER_BDE_LOCAL :=linux-user-bde.$(KOBJ)
 USER_BDE=$(DEST_DIR)/$(USER_BDE_LOCAL)
 
+KNET_CB_LOCAL := linux-knet-cb.$(KOBJ)
+KNET_CB := $(DEST_DIR)/$(KNET_CB_LOCAL)
+
 BCM_KNET_LOCAL :=linux-bcm-knet.$(KOBJ)
 BCM_KNET=$(DEST_DIR)/$(BCM_KNET_LOCAL)
 
@@ -114,6 +117,15 @@ LOCAL_TARGETS +=$(patsubst %,../$(platform)/%,$(BCM_KNET_LOCAL))
 all_targets +=$(LOCAL_TARGETS)
 endif
 
+ifdef BUILD_KNET_CB
+all_targets += $(KNET_CB)
+
+ifeq ($(NO_LOCAL_TARGETS),)
+LOCAL_TARGETS +=$(patsubst %,../$(platform)/%,$(KNET_CB_LOCAL))
+all_targets +=$(LOCAL_TARGETS)
+endif
+endif
+
 ADD_TO_CFLAGS += -I$(SDK)/systems/linux/kernel/modules/include
 COND_KNET_LIBS = libuser.$(libext)
 endif
@@ -141,6 +153,10 @@ kernel_modules:
 ifeq ($(BUILD_KNET),1)
 	$(MAKE) -C $(SDK)/systems/linux/kernel/modules kernel_version=$(kernel_version) \
 		subdirs="shared bcm-knet" override-target=linux-$(platform) CFLAGS="$(CFLAGS)"
+ifdef BUILD_KNET_CB
+	$(MAKE) -C $(SDK)/systems/linux/kernel/modules kernel_version=$(kernel_version) \
+		subdirs="knet-cb" override-target=linux-$(platform) CFLAGS="$(CFLAGS)"
+endif
 endif
 
 $(KERNEL_BDE): $(KERN_BLDROOT)/linux-kernel-bde.$(KOBJ)
@@ -153,6 +169,9 @@ $(USER_BDE): $(KERN_BLDROOT)/linux-user-bde.$(KOBJ)
 $(BCM_KNET): $(KERN_BLDROOT)/linux-bcm-knet.$(KOBJ)
 	$(OBJCOPY) --strip-debug $< $@
 
+$(KNET_CB): $(KERN_BLDROOT)/linux-knet-cb.$(KOBJ)
+	$(OBJCOPY) --strip-debug $< $@
+
 ifeq ($(NO_LOCAL_TARGETS),)
 $(foreach targ,$(LOCAL_TARGETS),$(eval $(call LOCAL_TARGET_DEF,$(targ))))
 endif
@@ -161,13 +180,14 @@ clean::
 	$(MAKE) -C $(SDK)/systems/bde/linux/kernel $@
 	$(MAKE) -C $(SDK)/systems/bde/linux/user/kernel $@
 	$(MAKE) -C $(SDK)/systems/linux/kernel/modules \
-		subdirs="shared bcm-knet" \
+		subdirs="shared bcm-knet knet-cb" \
 		override-target=linux-$(platform) $@
 	$(RM) $(KERNEL_BDE) $(USER_BDE)
-	$(RM) $(BCM_KNET)
+	$(RM) $(BCM_KNET) $(KNET_CB)
 	$(RM) $(KERN_BLDROOT)/linux-kernel-bde.$(KOBJ)
 	$(RM) $(KERN_BLDROOT)/linux-user-bde.$(KOBJ)
 	$(RM) $(KERN_BLDROOT)/linux-bcm-knet.$(KOBJ)
+	$(RM) $(KERN_BLDROOT)/linux-knet-cb.$(KOBJ)
 	$(RM) $(LOCAL_TARGETS)
 
 distclean:: clean

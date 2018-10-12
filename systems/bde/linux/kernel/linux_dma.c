@@ -152,10 +152,17 @@ LKM_MOD_PARAM(himem, "s", charp, 0);
 MODULE_PARM_DESC(himem,
 "Use high memory for DMA (default no)");
 
+/* Physical high memory address to use for DMA */
+static char *himemaddr = 0;
+LKM_MOD_PARAM(himemaddr, "s", charp, 0);
+MODULE_PARM_DESC(himemaddr,
+"Physical address to use for high memory DMA");
+
 /* DMA memory allocation */
 
 #define ONE_KB 1024
 #define ONE_MB (1024*1024)
+#define ONE_GB (1024*1024*1024)
 
 /* Default DMA memory size */
 #ifdef SAL_BDE_DMA_MEM_DEFAULT
@@ -192,6 +199,7 @@ static phys_addr_t _cpu_pbase = 0;
  */
 static phys_addr_t _dma_pbase = 0;
 static int _use_himem = 0;
+static unsigned long _himemaddr = 0;
 static int _use_dma_mapping = 0;
 static LIST_HEAD(_dma_seg);
 
@@ -308,8 +316,7 @@ _alloc_dma_blocks(dma_segment_t *dseg, int blks)
         return -1;
     }
     start = dseg->blk_cnt;
-    dseg->blk_cnt += blks;
-    for (i = start; i < dseg->blk_cnt; i++) {
+    for (i = 0; i < blks; i++) {
         /*
          * Note that we cannot use pci_alloc_consistent when we
          * want to be able to map DMA memory to user space.
@@ -321,9 +328,11 @@ _alloc_dma_blocks(dma_segment_t *dseg, int blks)
          */
         addr = __get_free_pages(mem_flags, dseg->blk_order);
         if (addr) {
-            dseg->blk_ptr[i] = addr;
+            dseg->blk_ptr[start + i] = addr;
+            ++dseg->blk_cnt;
         } else {
-            gprintk("DMA allocation failed\n");
+            gprintk("DMA allocation failed: allocated %d of %d "
+                    "requested blocks\n", i, blks);
             return -1;
         }
     }
@@ -391,7 +400,15 @@ _dma_segment_alloc(size_t size, size_t blk_size)
     }
     memset(dseg->blk_ptr, 0, blk_ptr_size);
     /* Allocate minimum number of blocks */
-    _alloc_dma_blocks(dseg, dseg->req_size / dseg->blk_size);
+    if (_alloc_dma_blocks(dseg, dseg->req_size / dseg->blk_size) != 0) {
+        gprintk("Failed to allocate minimum number of DMA blocks\n");
+        /*
+         * _alloc_dma_blocks() returns -1 if it fails to allocate the requested
+         * number of blocks, but it may still have allocated something.  Fall
+         * through and return dseg filled in with as much memory as we could
+         * allocate.
+         */
+    }
     /* Allocate more blocks until we have a complete segment */
     do {
         _find_largest_segment(dseg);
@@ -475,6 +492,9 @@ _pgalloc(size_t size)
     }
     if (dseg->seg_size < size) {
         /* If we didn't get the full size then forget it */
+        gprintk("_pgalloc() failed to get requested size %zu: "
+                "only got %lu contiguous across %d blocks\n",
+                size, dseg->seg_size, dseg->blk_cnt);
         _dma_segment_free(dseg);
         return NULL;
     }
@@ -583,7 +603,11 @@ _alloc_mpool(size_t size)
 
     if (_use_himem) {
         /* Use high memory for DMA */
-        pbase = virt_to_bus(high_memory);
+        if (_himemaddr) {
+            pbase = _himemaddr;
+        } else {
+            pbase = virt_to_bus(high_memory);
+        }
         if (((pbase + (size - 1)) >> 16) > DMA_BIT_MASK(16)) {
             gprintk("DMA in high memory at 0x%lx size 0x%lx is beyond the 4GB limit and not supported.\n", pbase, (unsigned long)size);
             return;
@@ -731,6 +755,18 @@ void _dma_init(int robo_switch)
             _use_himem = 1;
         } else if ((himem[0] & ~0x20) == 'N' || himem[0] == '0') {
             _use_himem = 0;
+        }
+    }
+
+    if (himemaddr && strlen(himemaddr) > 0) {
+        char suffix = (himemaddr[strlen(himemaddr)-1] & ~0x20);
+        _himemaddr = simple_strtoul(himemaddr, NULL, 0);
+        if (suffix == 'M') {
+            _himemaddr *= ONE_MB;
+        } else if (suffix == 'G') {
+            _himemaddr *= ONE_GB;
+        } else {
+            gprintk("DMA high memory address must be specified as e.g. himemaddr=8[MG]\n");
         }
     }
 
