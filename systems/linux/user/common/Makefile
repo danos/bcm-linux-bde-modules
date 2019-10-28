@@ -65,7 +65,7 @@ ifeq (,$(kernel_version))
 kernel_version=2_4
 endif
 
-ifeq ($(kernel_version),2_6)
+ifneq ($(kernel_version),2_4)
 KOBJ=ko
 else
 KOBJ=o

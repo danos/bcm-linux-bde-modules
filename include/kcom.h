@@ -138,8 +138,6 @@ typedef struct kcom_netif_s {
     uint16 vlan;
     uint16 qnum;
     uint8 macaddr[6];
-    uint8 ptch[2];
-    uint8 itmh[4];
     uint8 system_headers[KCOM_NETIF_SYSTEM_HEADERS_SIZE_MAX];
     uint8 system_headers_size;
     char name[KCOM_NETIF_NAME_MAX];
@@ -232,6 +230,9 @@ typedef struct kcom_filter_s {
     uint32 pph_lif_ext_size[8];
     uint8  udh_enable;
     uint32 udh_length_type[4];
+    /** Mark to match source modid and modport */
+    uint8  is_src_modport;
+    uint8  spa_unit;
 } kcom_filter_t;
 
 /*
