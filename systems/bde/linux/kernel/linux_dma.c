@@ -991,6 +991,9 @@ lkbde_get_dma_info(phys_addr_t* cpu_pbase, phys_addr_t* dma_pbase, ssize_t* size
 void
 _dma_pprint(void)
 {
+    pprintf("\tdmasize=%s\n", dmasize);
+    pprintf("\thimem=%s\n", himem);
+    pprintf("\thimemaddr=%s\n", himemaddr);
     pprintf("DMA Memory (%s): %d bytes, %d used, %d free%s\n",
             (_use_himem) ? "high" : "kernel",
             (_dma_vbase) ? _dma_mem_size : 0,

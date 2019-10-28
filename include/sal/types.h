@@ -92,14 +92,21 @@ typedef signed int		int32;		/* 32-bit quantity */
 
 #define COUNTOF(ary)		((int) (sizeof (ary) / sizeof ((ary)[0])))
 
-typedef uint32	sal_paddr_t;		/* Physical address (PCI address) */
-
 #ifdef PTRS_ARE_64BITS
-typedef uint64	sal_vaddr_t;		/* Virtual address (Host address) */
-#define PTR_TO_INT(x)		((uint32)(((sal_vaddr_t)(x))&0xFFFFFFFF))
+typedef uint64    sal_vaddr_t;        /* Virtual address (Host address) */
+typedef uint64    sal_paddr_t;        /* Physical address (PCI address) */
+#define PTR_TO_INT(x)        ((uint32)(((sal_vaddr_t)(x))&0xFFFFFFFF))
+#define PTR_HI_TO_INT(x)        ((uint32)((((sal_vaddr_t)(x))>>32)&0xFFFFFFFF))
 #else
-typedef uint32	sal_vaddr_t;		/* Virtual address (Host address) */
-#define PTR_TO_INT(x)		((uint32)(x))
+typedef uint32    sal_vaddr_t;        /* Virtual address (Host address) */
+/* Physical address (PCI address) */
+#ifdef PHYS_ADDRS_ARE_64BITS
+typedef uint64    sal_paddr_t;
+#else
+typedef uint32    sal_paddr_t;
+#endif
+#define PTR_TO_INT(x)        ((uint32)(x))
+#define PTR_HI_TO_INT(x)        (0)
 #endif
 
 #define INT_TO_PTR(x)		((void *)((sal_vaddr_t)(x)))

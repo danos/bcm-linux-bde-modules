@@ -341,19 +341,23 @@ shbde_iproc_pci_read(shbde_hal_t *shbde, void *iproc_regs,
     subwin_base = (addr & ~0xfff);
 
     if((icfg->cmic_ver >= 4) &&
+       ((subwin_base == 0x10230000) || (subwin_base == 0x18012000))) {
+        /* Route the PAXB register through IMAP0_2 */
+        reg = ROFFS(iproc_regs, 0x2000 + (addr & 0xfff));
+    } else if((icfg->cmic_ver >= 4) &&
        ((subwin_base == 0x10231000) || (subwin_base == 0x18013000))) {
         /* Route the INTC block access through IMAP0_6 */
         reg = ROFFS(iproc_regs, 0x6000 + (addr & 0xfff));
     } else {
     /* Update base address for sub-window 7 */
         subwin_base |= 1; /* Valid bit */
-    reg = ROFFS(iproc_regs, BAR0_PAXB_IMAP0_7);
-    iproc32_write(shbde, reg, subwin_base);
+        reg = ROFFS(iproc_regs, BAR0_PAXB_IMAP0_7);
+        iproc32_write(shbde, reg, subwin_base);
         /* Read it to make sure the write actually goes through */
         subwin_base = iproc32_read(shbde, reg);
 
-    /* Read register through sub-window 7 */
-    reg = ROFFS(iproc_regs, 0x7000 + (addr & 0xfff));
+        /* Read register through sub-window 7 */
+        reg = ROFFS(iproc_regs, 0x7000 + (addr & 0xfff));
     }
 
     return iproc32_read(shbde, reg);
@@ -388,19 +392,23 @@ shbde_iproc_pci_write(shbde_hal_t *shbde, void *iproc_regs,
     subwin_base = (addr & ~0xfff);
 
     if((icfg->cmic_ver >= 4) &&
+       ((subwin_base == 0x10230000) || (subwin_base == 0x18012000))) {
+        /* Route the PAXB register through IMAP0_2 */
+        reg = ROFFS(iproc_regs, 0x2000 + (addr & 0xfff));
+    } else if((icfg->cmic_ver >= 4) &&
        ((subwin_base == 0x10231000) || (subwin_base == 0x18013000))) {
         /* Route the INTC block access through IMAP0_6 */
         reg = ROFFS(iproc_regs, 0x6000 + (addr & 0xfff));
     } else {
     /* Update base address for sub-window 7 */
         subwin_base |= 1; /* Valid bit */
-    reg = ROFFS(iproc_regs, BAR0_PAXB_IMAP0_7);
-    iproc32_write(shbde, reg, subwin_base);
+        reg = ROFFS(iproc_regs, BAR0_PAXB_IMAP0_7);
+        iproc32_write(shbde, reg, subwin_base);
         /* Read it to make sure the write actually goes through */
         subwin_base = iproc32_read(shbde, reg);
 
         /* Read register through sub-window 7 */
-    reg = ROFFS(iproc_regs, 0x7000 + (addr & 0xfff));
+        reg = ROFFS(iproc_regs, 0x7000 + (addr & 0xfff));
     }
 
     iproc32_write(shbde, reg, data);
