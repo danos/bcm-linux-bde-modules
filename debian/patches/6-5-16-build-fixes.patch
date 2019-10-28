@@ -1,8 +1,0 @@
---- /dev/null
-+++ b/include/soc/drv.h
-@@ -0,0 +1,5 @@
-+#ifndef _SOC_DRV_H
-+
-+#define SOC_IS_JERICHO_2_TYPE(dev_type) (((dev_type) & BCM_JR2_DEVID_MASK) == (BCM88690_DEVICE_ID & BCM_JR2_DEVID_MASK))
-+
-+#endif /* !_SOC_DRV_H */

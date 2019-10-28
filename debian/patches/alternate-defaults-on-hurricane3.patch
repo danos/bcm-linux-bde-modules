@@ -1,6 +1,6 @@
 --- a/systems/bde/linux/kernel/linux-kernel-bde.c
 +++ b/systems/bde/linux/kernel/linux-kernel-bde.c
-@@ -2448,6 +2448,16 @@ _pci_probe(struct pci_dev *dev, const st
+@@ -2491,6 +2491,16 @@ _pci_probe(struct pci_dev *dev, const st
              }
          }
  
