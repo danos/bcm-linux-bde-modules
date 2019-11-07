@@ -1,20 +1,8 @@
---- a/systems/bde/linux/kernel/linux-kernel-bde.c
-+++ b/systems/bde/linux/kernel/linux-kernel-bde.c
-@@ -31,7 +31,6 @@
- #include <sdk_config.h>
- #include <soc/devids.h>
- #include <soc/cmic.h>
--#include <soc/drv.h>
- #include <linux/version.h>
- 
- #include "linux_shbde.h"
---- a/systems/bde/linux/user/kernel/linux-user-bde.c
-+++ b/systems/bde/linux/user/kernel/linux-user-bde.c
-@@ -28,7 +28,6 @@
- #include <sal/core/thread.h>
- #include <sal/core/sync.h>
- #include <soc/devids.h>
--#include <soc/drv.h>
- 
- #include "linux-user-bde.h"
- 
+--- /dev/null
++++ b/include/soc/drv.h
+@@ -0,0 +1,5 @@
++#ifndef _SOC_DRV_H
++
++#define SOC_IS_JERICHO_2_TYPE(dev_type) (((dev_type) & BCM_JR2_DEVID_MASK) == (BCM88690_DEVICE_ID & BCM_JR2_DEVID_MASK))
++
++#endif /* !_SOC_DRV_H */

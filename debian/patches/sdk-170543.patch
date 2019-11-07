@@ -1,6 +1,6 @@
 --- a/systems/bde/linux/kernel/linux-kernel-bde.c
 +++ b/systems/bde/linux/kernel/linux-kernel-bde.c
-@@ -256,6 +256,19 @@ struct bde_spi_device_id {
+@@ -257,6 +257,19 @@ struct bde_spi_device_id {
      uint32  spifreq;
  };
  
@@ -20,7 +20,7 @@
  /* Control Data */
  typedef struct bde_ctrl_s {
      struct list_head list;
-@@ -285,10 +298,7 @@ typedef struct bde_ctrl_s {
+@@ -286,10 +299,7 @@ typedef struct bde_ctrl_s {
      struct device *dma_dev;
  #endif
  
@@ -32,7 +32,7 @@
  
      /* Secondary mapped base address */
      sal_vaddr_t alt_base_addr;
-@@ -432,10 +442,10 @@ static void *cpu_address = NULL;
+@@ -433,10 +443,10 @@ static void *cpu_address = NULL;
  
  #define IHOST_GICD_REG_ADDR_VALID(d, addr) \
      (_devices[d].bde_dev.base_address1 && \
@@ -45,7 +45,7 @@
  
  static uint32_t _read(int d, uint32_t addr);
  
-@@ -554,7 +564,8 @@ _eb_device_create(resource_size_t paddr,
+@@ -555,7 +565,8 @@ _eb_device_create(resource_size_t paddr,
  
      /* Map in the device */
      ctrl->bde_dev.base_address = (sal_vaddr_t)IOREMAP(paddr, 0x10000);
@@ -55,7 +55,7 @@
  
      dev_rev_id = _read(dev_id, 0x178);  /* CMIC_DEV_REV_ID */
  
-@@ -590,7 +601,8 @@ sand_device_create(void)
+@@ -591,7 +602,8 @@ sand_device_create(void)
  
      /* Map in the device */ /* FIX_ME: not realy map anything */
      ctrl->bde_dev.base_address = (sal_vaddr_t)IOREMAP(0x40000000, 0x100000);
@@ -65,7 +65,7 @@
  
      ctrl->iLine = 0;
      ctrl->isr = NULL;
-@@ -695,7 +707,8 @@ iproc_cmicd_probe(struct platform_device
+@@ -696,7 +708,8 @@ iproc_cmicd_probe(struct platform_device
          gprintk("Error mapping iProc CMIC registers");
          return -1;
      }
@@ -75,7 +75,7 @@
  
  #ifdef CONFIG_OF
      if (of_find_compatible_node(NULL, NULL, IPROC_CMICX_COMPATIBLE)) {
-@@ -712,16 +725,18 @@ iproc_cmicd_probe(struct platform_device
+@@ -713,16 +726,18 @@ iproc_cmicd_probe(struct platform_device
          memres = iproc_platform_get_resource(pldev, IORESOURCE_MEM, 1);
          if (memres) {
              ctrl->bde_dev.base_address1 = (sal_vaddr_t)IOREMAP(memres->start, memres->end - memres->start + 1);
@@ -97,7 +97,7 @@
              }
          } else {
              gprintk("Error mapping ihost GICD registers\n");
-@@ -1019,7 +1034,8 @@ _ics_bde_create(void)
+@@ -1020,7 +1035,8 @@ _ics_bde_create(void)
          /* Map in the device */
          paddr = BCM_ICS_CMIC_BASE;
          ctrl->bde_dev.base_address = (sal_vaddr_t)IOREMAP(paddr, 0x10000);
@@ -107,7 +107,7 @@
  
          dev_rev_id = *((unsigned int *)(KSEG1ADDR(paddr + 0x178)));
  
-@@ -2180,7 +2196,7 @@ _pci_probe(struct pci_dev *dev, const st
+@@ -2181,7 +2197,7 @@ _pci_probe(struct pci_dev *dev, const st
      resource_size_t paddr;
      uint16  cmd = 0;
      uint32 bar_len;
@@ -116,7 +116,7 @@
      int baroff = 0;
      int iproc = 0;
      int plx_dev = 0;
-@@ -2567,13 +2583,21 @@ _pci_probe(struct pci_dev *dev, const st
+@@ -2568,13 +2584,21 @@ _pci_probe(struct pci_dev *dev, const st
      }
  
      ctrl->bde_dev.base_address = (sal_vaddr_t)IOREMAP(paddr, bar_len);
@@ -139,7 +139,7 @@
      if (iproc
  #ifdef DNX_TEST_BOARD
          || (dev->device == PLX9056_DEVICE_ID && baroff == 2)
-@@ -2582,7 +2606,8 @@ _pci_probe(struct pci_dev *dev, const st
+@@ -2583,7 +2607,8 @@ _pci_probe(struct pci_dev *dev, const st
          paddr = pci_resource_start(dev, 0);
          bar_len = pci_resource_len(dev, 0);
          ctrl->bde_dev.base_address1 = (sal_vaddr_t)IOREMAP(paddr, bar_len);
@@ -149,7 +149,7 @@
          if (debug >= 3) {
              gprintk("BAR 0: kernel addr:0x%lx phys addr:0x%lx length:%lx\n",
                (unsigned long)ctrl->bde_dev.base_address1, (unsigned long)paddr, (unsigned long)bar_len);
-@@ -2783,7 +2808,8 @@ map_local_bus(uint64_t addr, uint32_t si
+@@ -2784,7 +2809,8 @@ map_local_bus(uint64_t addr, uint32_t si
  
      /* Map in the device */
      ctrl->bde_dev.base_address = (sal_vaddr_t)IOREMAP(addr, size);
@@ -159,7 +159,7 @@
  
      _bde_add_device();
      return(ctrl);
-@@ -2827,7 +2853,8 @@ map_local_bus2(bde_ctrl_t *plx_ctrl, uin
+@@ -2828,7 +2854,8 @@ map_local_bus2(bde_ctrl_t *plx_ctrl, uin
  
      /* Map in the device */
      ctrl->bde_dev.base_address = plx_ctrl->bde_dev.base_address + dev_base;
@@ -169,7 +169,7 @@
  
  #if 1
      addr = (uint8_t *)ctrl->bde_dev.base_address + PL0_REVISION_REG;
-@@ -2860,12 +2887,12 @@ probe_plx_local_bus(void)
+@@ -2861,12 +2888,12 @@ probe_plx_local_bus(void)
      }
      addr_hi_str[0] = 0;
  #ifdef PHYS_ADDR_IS_64BIT
@@ -184,7 +184,7 @@
  
      addr = (uint8_t *)plx_ctrl.bde_dev.base_address + CPLD_OFFSET + CPLD_REVISION_REG;
      val = readl(addr);
-@@ -3144,7 +3171,7 @@ _pprint(void)
+@@ -3145,7 +3172,7 @@ _pprint(void)
              pprintf("AXI Device 0x%x:0x%x:0x%.8lx:%d\n",
                      ctrl->bde_dev.device,
                      ctrl->bde_dev.rev,
@@ -193,7 +193,7 @@
                      ctrl->iLine);
          } else if (ctrl->dev_type & BDE_EB_DEV_TYPE) {
              pprintf("EB Bus Device 0x%x:0x%x\n",
-@@ -3160,6 +3187,54 @@ _pprint(void)
+@@ -3161,6 +3188,54 @@ _pprint(void)
      }
      return 0;
  }
@@ -248,7 +248,7 @@
  
  /* Workaround for broken Busybox/PPC insmod */
  static char _modname[] = LINUX_KERNEL_BDE_NAME;
-@@ -3170,7 +3245,7 @@ static gmodule_t _gmodule = {
+@@ -3171,7 +3246,7 @@ static gmodule_t _gmodule = {
      init: _init,
      cleanup: _cleanup,
      pprint: _pprint,
@@ -257,7 +257,7 @@
  };
  
  gmodule_t *
-@@ -3945,14 +4020,14 @@ lkbde_cpu_pci_register(int d)
+@@ -3946,14 +4021,14 @@ lkbde_cpu_pci_register(int d)
      if (ctrl->bde_dev.base_address) {
          iounmap((void *)ctrl->bde_dev.base_address);
      }
@@ -274,7 +274,7 @@
          gprintk("ctrl->bde_dev.device=0x%x, ctrl->bde_dev.rev=0x%x, "
                  "ctrl->bde_dev.base_address=0x%lx\n",
                  ctrl->bde_dev.device, ctrl->bde_dev.rev,
-@@ -4099,7 +4174,7 @@ lkbde_get_dev_phys(int d)
+@@ -4100,7 +4175,7 @@ lkbde_get_dev_phys(int d)
                  d, _devices[d].dev_type);
          return 0;
      }
@@ -283,7 +283,7 @@
  }
  
  uint32_t
-@@ -4115,7 +4190,7 @@ lkbde_get_dev_phys_hi(int d)
+@@ -4116,7 +4191,7 @@ lkbde_get_dev_phys_hi(int d)
          return 0;
      }
  #ifdef PHYS_ADDR_IS_64BIT
@@ -292,7 +292,7 @@
  #else
      return 0;
  #endif
-@@ -4161,15 +4236,15 @@ lkbde_get_dev_resource(int d, int rsrc,
+@@ -4162,15 +4237,15 @@ lkbde_get_dev_resource(int d, int rsrc,
  
      switch (rsrc) {
      case 0:

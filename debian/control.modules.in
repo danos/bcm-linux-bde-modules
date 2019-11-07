@@ -4,6 +4,7 @@ Architecture: any
 Provides: bcm-linux-bde-modules,
           flexware-hurricane3-defaults,
           bcm-sdk-170543,
+          bcm-linux-bde-modules-msix-intr,
 Depends: ${misc:Depends}, @KVERS_DEPEND@
 Description: Kernel modules for use Broadcom switches
  Provides Broadcom switch kernel modules.

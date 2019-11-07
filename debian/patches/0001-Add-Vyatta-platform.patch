@@ -169,7 +169,7 @@
 + 
 --- /dev/null
 +++ b/make/Makefile.linux-vyatta
-@@ -0,0 +1,83 @@
+@@ -0,0 +1,85 @@
 +#  Copyright (c) 2018-2019 AT&T Intellectual Property. All rights reserved.
 +#  Copyright 2017 Broadcom
 +#  
@@ -188,6 +188,8 @@
 +CFGFLAGS += -DLONGS_ARE_64BITS
 +CFGFLAGS += -DPTRS_ARE_64BITS
 +CFGFLAGS += -DSAL_SPL_LOCK_ON_IRQ
++# Try to use MSI-X, falling back to MSI or INTx if not available
++CFGFLAGS += -DBDE_LINUX_USE_MSIX_INTERRUPT
 +
 +KVERS := $(shell cd /lib/modules/*/build/.. ; basename $$(pwd))
 +KDIR := /lib/modules/$(KVERS)

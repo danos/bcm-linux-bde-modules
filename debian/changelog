@@ -1,3 +1,9 @@
+bcm-linux-bde-modules (6.5.16-0vyatta4) unstable; urgency=medium
+
+  * DANOS Import master
+
+ -- Robert Shearman <robert.shearman@att.com>  Thu, 07 Nov 2019 10:35:06 +0000
+
 bcm-linux-bde-modules (6.5.16-0vyatta2.1) unstable; urgency=medium
 
   * DANOS Import
