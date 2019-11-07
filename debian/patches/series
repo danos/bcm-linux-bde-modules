@@ -1,0 +1,11 @@
+# SDK patches
+
+# Vyatta build specific patches
+0001-Add-Vyatta-platform.patch
+0002-Disable-KNET.patch
+fix-linux-user-bde.patch
+add-petra-support.patch
+fix-mem-alloc.patch
+alternate-defaults-on-hurricane3.patch
+6-5-16-build-fixes.patch
+sdk-170543.patch

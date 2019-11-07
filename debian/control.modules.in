@@ -1,0 +1,9 @@
+Package: bcm-linux-bde-modules-_KVERS_
+Section: kernel
+Architecture: any
+Provides: bcm-linux-bde-modules,
+          flexware-hurricane3-defaults,
+          bcm-sdk-170543,
+Depends: ${misc:Depends}, @KVERS_DEPEND@
+Description: Kernel modules for use Broadcom switches
+ Provides Broadcom switch kernel modules.

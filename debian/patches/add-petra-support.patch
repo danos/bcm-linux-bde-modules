@@ -1,0 +1,10 @@
+--- a/make/Makefile.linux-vyatta
++++ b/make/Makefile.linux-vyatta
+@@ -16,6 +16,7 @@
+ CFGFLAGS += -DLONGS_ARE_64BITS
+ CFGFLAGS += -DPTRS_ARE_64BITS
+ CFGFLAGS += -DSAL_SPL_LOCK_ON_IRQ
++CFGFLAGS += -DBCM_PETRA_SUPPORT -D__DUNE_LINUX_BCM_CPU_PCIE__
+ 
+ KVERS := $(shell cd /lib/modules/*/build/.. ; basename $$(pwd))
+ KDIR := /lib/modules/$(KVERS)

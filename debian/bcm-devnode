@@ -1,0 +1,25 @@
+#!/usr/bin/perl
+
+use strict;
+
+my %majors = (
+    "linux-kernel-bde" => "127",
+    "linux-user-bde" => "126",
+);
+
+if (scalar(@ARGV) < 2) {
+    exit(1);
+}
+
+my ($action, $module) = @ARGV;
+my $major = $majors{$module};
+
+if ($action eq "add") {
+    exit(system("mknod /dev/$module c $major 0"));
+}
+
+if ($action eq "remove") {
+    exit(system("rm -rf /dev/$module"));
+}
+
+exit(1);

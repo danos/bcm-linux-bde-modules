@@ -1,0 +1,20 @@
+--- a/systems/bde/linux/kernel/linux-kernel-bde.c
++++ b/systems/bde/linux/kernel/linux-kernel-bde.c
+@@ -31,7 +31,6 @@
+ #include <sdk_config.h>
+ #include <soc/devids.h>
+ #include <soc/cmic.h>
+-#include <soc/drv.h>
+ #include <linux/version.h>
+ 
+ #include "linux_shbde.h"
+--- a/systems/bde/linux/user/kernel/linux-user-bde.c
++++ b/systems/bde/linux/user/kernel/linux-user-bde.c
+@@ -28,7 +28,6 @@
+ #include <sal/core/thread.h>
+ #include <sal/core/sync.h>
+ #include <soc/devids.h>
+-#include <soc/drv.h>
+ 
+ #include "linux-user-bde.h"
+ 

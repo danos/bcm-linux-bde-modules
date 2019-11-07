@@ -1,0 +1,10 @@
+--- a/make/Make.config
++++ b/make/Make.config
+@@ -22,6 +22,7 @@ ifneq ($(strip $(override-target)),)
+ override TARGET=$(override-target)
+ endif
+ 
++BUILD_KNET=0
+ export TARGET
+ 
+ #

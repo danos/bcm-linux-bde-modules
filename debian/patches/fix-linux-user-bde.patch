@@ -1,0 +1,10 @@
+--- a/systems/bde/linux/user/kernel/linux-user-bde.c
++++ b/systems/bde/linux/user/kernel/linux-user-bde.c
+@@ -23,6 +23,7 @@
+ #include <gmodule.h>
+ #include <mpool.h>
+ #include <linux-bde.h>
++#include <linux/uaccess.h>
+ 
+ #include <sal/core/thread.h>
+ #include <sal/core/sync.h>

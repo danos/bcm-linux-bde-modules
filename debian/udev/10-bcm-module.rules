@@ -1,0 +1,7 @@
+ACTION=="add" SUBSYSTEM=="module" DEVPATH=="/module/linux_kernel_bde" RUN="/usr/bin/bcm-devnode add linux-kernel-bde"
+
+ACTION=="add" SUBSYSTEM=="module" DEVPATH=="/module/linux_user_bde" RUN="/usr/bin/bcm-devnode add linux-user-bde"
+
+ACTION=="remove" SUBSYSTEM=="module" DEVPATH=="/module/linux_kernel_bde" RUN="/usr/bin/bcm-devnode remove linux-kernel-bde"
+
+ACTION=="remove" SUBSYSTEM=="module" DEVPATH=="/module/linux_user_bde" RUN="/usr/bin/bcm-devnode remove linux-user-bde"

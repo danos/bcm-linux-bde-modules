@@ -1,0 +1,12 @@
+Source: bcm-linux-bde-modules
+Section: devel
+Priority: optional
+Maintainer: Vyatta Package Maintainers <DL-vyatta-help@att.com>
+Build-Depends:
+ debhelper (>= 9),
+ dh-signobs,
+ linux-vyatta-kbuild | linux-headers-amd64 [amd64] | linux-headers
+Standards-Version: 3.9.8
+
+Package: bcm-linux-bde-modules
+Architecture: any
