@@ -1,3 +1,15 @@
+bcm-linux-bde-modules (6.5.17-1vyatta1) unstable; urgency=medium
+
+  [ Robert Shearman ]
+  * Import upstream version 6.5.17
+  * Refresh patches
+  * Turn off pristine-tar
+  * Double DMA pool size for DNX
+
+  [ Charles (Chas) Williams ]
+
+ -- Charles (Chas) Williams <ciwillia@vyatta.att-mail.com>  Fri, 29 Nov 2019 09:12:55 -0500
+
 bcm-linux-bde-modules (6.5.16-0vyatta4) unstable; urgency=medium
 
   * DANOS Import master
