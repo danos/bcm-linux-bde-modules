@@ -112,12 +112,18 @@ be made.
 #define HX5_IHOST_GICD_ISENABLERN_1        (0x10781104)
 #define HX5_IHOST_GICD_ICENABLERN_1        (0x10781184)
 #define HX5_IHOST_GICD_ICENABLERN_8        (0x107811a0)
+#define HX5_IHOST_GICD_ISPENDRN_8          (0x10781220)
 /* Offset between ISENABLERN_1 and ICENABLERN_1 in 4-bytes */
 #define HX5_IHOST_IRQ_MASK_OFFSET          0x20
-#define HX5_IHOST_INTR_MAP_NUM             (HX5_IHOST_GICD_ICENABLERN_8 - HX5_IHOST_GICD_ISENABLERN_0)
+/* Offset between ISENABLERN_1 and ISPENDRN_1 in 4-bytes */
+#define HX5_IHOST_IRQ_PEND_OFFSET          0x40
+#define HX5_IHOST_INTR_MAP_NUM             (HX5_IHOST_GICD_ISPENDRN_8 - HX5_IHOST_GICD_ISENABLERN_0)
 #define HX5_IHOST_INTR_STATUS_MAP_NUM      (INTC_INTR_REG_NUM * (sizeof(uint32)))
 #define IRQ_BIT(intr)                      (intr % (sizeof(uint32)*8))
 #define IRQ_MASK_INDEX(intr)               (intr / (sizeof(uint32)*8))
+#define HX5_SW_PROG_INTR_PRIORITY          73
+#define INTR_SW_PROG_INTR_BITPOS           (1 << IRQ_BIT(HX5_SW_PROG_INTR_PRIORITY))
+#define INTC_SW_PROG_INTR_REG_IND          IRQ_MASK_INDEX(HX5_SW_PROG_INTR_PRIORITY)
 #define HX5_CHIP_INTR_LOW_PRIORITY         119
 #define INTR_LOW_PRIORITY_BITPOS           (1 << IRQ_BIT(HX5_CHIP_INTR_LOW_PRIORITY))
 #define INTC_LOW_PRIORITY_INTR_REG_IND     IRQ_MASK_INDEX(HX5_CHIP_INTR_LOW_PRIORITY)
@@ -315,13 +321,17 @@ _cmicx_interrupt(bde_ctrl_t *ctrl)
                     continue;
                 }
                 if (ctrl->dev_type & BDE_AXI_DEV_TYPE) {
-                    if (ind < INTC_LOW_PRIORITY_INTR_REG_IND) {
+                    if (ind < INTC_SW_PROG_INTR_REG_IND) {
                         continue;
                     }
-                    IHOST_READ_INTR(d, ihost_intr_status_base + ind, stat);
-                    IHOST_READ_INTR(d, ihost_intr_enable_base + ind, iena);
-                    if (ind == INTC_LOW_PRIORITY_INTR_REG_IND) {
-                        stat &= INTR_LOW_PRIORITY_BITPOS;
+                    if (ind == INTC_SW_PROG_INTR_REG_IND) {
+                        IHOST_READ_INTR(d, ihost_intr_enable_base + ind + HX5_IHOST_IRQ_PEND_OFFSET, stat);
+                        stat &= INTR_SW_PROG_INTR_BITPOS;
+                    } else {
+                        IHOST_READ_INTR(d, ihost_intr_status_base + ind, stat);
+                        if (ind == INTC_LOW_PRIORITY_INTR_REG_IND) {
+                            stat &= INTR_LOW_PRIORITY_BITPOS;
+                        }
                     }
                 } else {
                     READ_INTC_INTR(d, ctrl->intr_regs.intc_intr_status_base + 4 * ind, stat);
@@ -347,10 +357,13 @@ _cmicx_interrupt(bde_ctrl_t *ctrl)
             continue;
         }
         if (ctrl->dev_type & BDE_AXI_DEV_TYPE) {
-            if (ind < INTC_LOW_PRIORITY_INTR_REG_IND) {
+            if (ind < INTC_SW_PROG_INTR_REG_IND) {
                 continue;
             }
-            if (ind == INTC_LOW_PRIORITY_INTR_REG_IND) {
+            if (ind == INTC_SW_PROG_INTR_REG_IND) {
+                IHOST_WRITE_INTR(d, ihost_intr_enable_base + INTC_SW_PROG_INTR_REG_IND +
+                    HX5_IHOST_IRQ_MASK_OFFSET, INTR_SW_PROG_INTR_BITPOS);
+            } else if (ind == INTC_LOW_PRIORITY_INTR_REG_IND) {
                 IHOST_WRITE_INTR(d, ihost_intr_enable_base + INTC_LOW_PRIORITY_INTR_REG_IND +
                     HX5_IHOST_IRQ_MASK_OFFSET, INTR_LOW_PRIORITY_BITPOS);
             } else {
@@ -917,7 +930,7 @@ _devices_init(int d)
 #if defined(BCM_DNXF_SUPPORT) || defined(BCM_DNX_SUPPORT)
         switch (user_bde->get_dev(d)->device & DNXC_DEVID_FAMILY_MASK) {
 #ifdef BCM_DNX_SUPPORT
-          case JERICHO_2_DEVICE_ID:
+          case JERICHO2_DEVICE_ID:
           case J2C_DEVICE_ID:
           case J2C_2ND_DEVICE_ID:
           case Q2A_DEVICE_ID:

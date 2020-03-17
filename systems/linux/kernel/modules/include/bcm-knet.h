@@ -57,10 +57,10 @@ typedef int
                     int chan, kcom_filter_t *filter);
 
 typedef int
-(*knet_hw_tstamp_enable_cb_f)(int dev_no, int port);
+(*knet_hw_tstamp_enable_cb_f)(int dev_no, int phys_port);
 
 typedef int
-(*knet_hw_tstamp_tx_time_get_cb_f)(int dev_no, int port, uint8_t *pkt, uint64_t *ts);
+(*knet_hw_tstamp_tx_time_get_cb_f)(int dev_no, int phys_port, uint8_t *pkt, uint64_t *ts);
 
 typedef int
 (*knet_hw_tstamp_tx_meta_get_cb_f)(int dev_no, struct sk_buff *skb, uint32_t **md);
@@ -69,7 +69,7 @@ typedef int
 (*knet_hw_tstamp_ptp_clock_index_cb_f)(int dev_no);
 
 typedef int
-(*knet_hw_tstamp_rx_time_upscale_cb_f)(int dev_no, uint64_t *ts);
+(*knet_hw_tstamp_rx_time_upscale_cb_f)(int dev_no, int phys_port, struct sk_buff *skb, uint64_t *ts);
 
 extern int
 bkn_rx_skb_cb_register(knet_skb_cb_f rx_cb);

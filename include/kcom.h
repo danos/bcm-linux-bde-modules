@@ -60,7 +60,7 @@
 #define KCOM_M_DBGPKT_GET       42 /* Get debug packet function info */
 #define KCOM_M_WB_CLEANUP       51 /* Clean up for warmbooting */
 
-#define KCOM_VERSION            10 /* Protocol version */
+#define KCOM_VERSION            11 /* Protocol version */
 
 /*
  * Message status codes
@@ -141,6 +141,7 @@ typedef struct kcom_netif_s {
     uint8 system_headers[KCOM_NETIF_SYSTEM_HEADERS_SIZE_MAX];
     uint8 system_headers_size;
     char name[KCOM_NETIF_NAME_MAX];
+    uint8 phys_port;
 } kcom_netif_t;
 
 /*

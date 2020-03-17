@@ -46,6 +46,13 @@
 #define MEMCPY memcpy
 #endif /* ifdef __GNUC__ */
 
+#if defined(CMIC_SOFT_BYTE_SWAP)
+#define CMIC_SWAP32(_x)   ((((_x) & 0xff000000) >> 24) \
+                         | (((_x) & 0x00ff0000) >>  8) \
+                         | (((_x) & 0x0000ff00) <<  8) \
+                         | (((_x) & 0x000000ff) << 24))
+#endif /* defined(CMIC_SOFT_BYTE_SWAP) */
+
 #define PCI_USE_INT_NONE    (-1)
 #define PCI_USE_INT_INTX     (0)
 #define PCI_USE_INT_MSI     (1)
@@ -338,7 +345,7 @@ static int _cpu_ndevices = 0;
 
 #if defined(IPROC_CMICD) && defined(CONFIG_OF)
 #define ICFG_CHIP_ID_REG      0x10236000
-#define IHOST_CMICX_MAX_INTRS 128
+#define IHOST_CMICX_MAX_INTRS 129
 static uint32 iproc_cmicx_irqs[IHOST_CMICX_MAX_INTRS];
 #endif
 
@@ -439,7 +446,8 @@ static void *cpu_address = NULL;
     (addr & 0xFFFFFF00) == _devices[d].iowin[1].addr)
 
 #define IHOST_GICD_REG_ADDR_REMAP(d, addr) \
-    (void *)(_devices[d].bde_dev.base_address1 + (addr - _devices[d].iowin[1].addr))
+    (void *)(_devices[d].bde_dev.base_address1 + \
+    (addr - ((sal_vaddr_t)_devices[d].iowin[1].addr)))
 
 static uint32_t _read(int d, uint32_t addr);
 
@@ -762,9 +770,12 @@ iproc_cmicd_probe(struct platform_device *pldev)
 #ifdef CONFIG_OF
     if (of_find_compatible_node(NULL, NULL, IPROC_CMICX_COMPATIBLE)) {
         int i;
+        memset(iproc_cmicx_irqs, 0, IHOST_CMICX_MAX_INTRS*sizeof(uint32_t));
         for (i = 0; i < IHOST_CMICX_MAX_INTRS; i++) {
             irqres = iproc_platform_get_resource(pldev, IORESOURCE_IRQ, i);
-            iproc_cmicx_irqs[i] = irqres->start;
+            if (irqres) {
+                iproc_cmicx_irqs[i] = irqres->start;
+            }
             if (debug >= 1) {
                 gprintk("iproc_cmicx_irqs[%d] = %d\n", i, iproc_cmicx_irqs[i]);
             }
@@ -1409,6 +1420,8 @@ static const struct pci_device_id _id_table[] = {
     { BROADCOM_VENDOR_ID, BCM56174_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { BROADCOM_VENDOR_ID, BCM53570_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { BROADCOM_VENDOR_ID, BCM53575_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
+    { BROADCOM_VENDOR_ID, BCM56070_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
+    { BROADCOM_VENDOR_ID, BCM56071_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { PCI_VENDOR_ID_PLX, PCI_DEVICE_ID_PLX_9656, PCI_ANY_ID, PCI_ANY_ID },
     { PCI_VENDOR_ID_PLX, PCI_DEVICE_ID_PLX_9056, PCI_ANY_ID, PCI_ANY_ID },
     { BCM53000_VENDOR_ID, BCM53000PCIE_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
@@ -1512,6 +1525,8 @@ static const struct pci_device_id _id_table[] = {
     { BROADCOM_VENDOR_ID, BCM88802_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { BROADCOM_VENDOR_ID, BCM88803_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { BROADCOM_VENDOR_ID, BCM88804_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
+    { BROADCOM_VENDOR_ID, BCM88805_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
+    { BROADCOM_VENDOR_ID, BCM88820_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { BROADCOM_VENDOR_ID, BCM88822_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { BROADCOM_VENDOR_ID, BCM88823_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { BROADCOM_VENDOR_ID, BCM88824_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
@@ -1612,6 +1627,7 @@ static const struct pci_device_id _id_table[] = {
     { BROADCOM_VENDOR_ID, BCM53547_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { BROADCOM_VENDOR_ID, BCM53548_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { BROADCOM_VENDOR_ID, BCM53549_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
+    { BROADCOM_VENDOR_ID, BCM56470_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { 0, 0, 0, 0 }
 };;
 
@@ -3573,6 +3589,9 @@ _interrupt_connect(int d,
             if (of_find_compatible_node(NULL, NULL, IPROC_CMICX_COMPATIBLE)) {
                 int i, j;
                 for (i = 0; i < IHOST_CMICX_MAX_INTRS; i++) {
+                    if (!iproc_cmicx_irqs[i]) {
+                        continue;
+                    }
                     if (unlikely(debug >= 1))
                         gprintk("%s(%d):device# = %d, request_irq(%d)\n",
                             __func__, __LINE__, d, iproc_cmicx_irqs[i]);
@@ -3585,6 +3604,9 @@ _interrupt_connect(int d,
                 }
                 if (ret < 0) {
                     for (j = 0; j < i; j++) {
+                        if (!iproc_cmicx_irqs[j]) {
+                            continue;
+                        }
                         free_irq(iproc_cmicx_irqs[j], ctrl);
                     }
                     goto err_disable_msi;
@@ -3694,6 +3716,9 @@ _interrupt_disconnect(int d)
         if (of_find_compatible_node(NULL, NULL, IPROC_CMICX_COMPATIBLE)) {
             int i;
             for (i = 0; i < IHOST_CMICX_MAX_INTRS; i++) {
+                if (!iproc_cmicx_irqs[i]) {
+                    continue;
+                }
                 if (unlikely(debug > 1)) {
                     gprintk("%s(%d):device# = %d, free_irq(%d)\n",
                             __func__, __LINE__, d, iproc_cmicx_irqs[i]);
@@ -4013,7 +4038,7 @@ lkbde_cpu_pci_register(int d)
 #if defined(BCM_DNXF_SUPPORT) || defined(BCM_DNX_SUPPORT)
     switch (ctrl->bde_dev.device & DNXC_DEVID_FAMILY_MASK) {
 #ifdef BCM_DNX_SUPPORT
-      case JERICHO_2_DEVICE_ID:
+      case JERICHO2_DEVICE_ID:
       case J2C_DEVICE_ID:
       case J2C_2ND_DEVICE_ID:
       case Q2A_DEVICE_ID:

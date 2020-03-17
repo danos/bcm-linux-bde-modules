@@ -540,8 +540,6 @@ typedef struct bkn_switch_info_s {
     uint32_t inst_id;           /* Instance id of this device */
     int evt_idx;                /* Event queue index for this device*/
     int basedev_suspended;      /* Base device suspended */
-    int tx_hwts;                /* HW timestamp for Tx */
-    int rx_hwts;                /* HW timestamp for Rx */
     struct sk_buff_head tx_ptp_queue;   /* Tx PTP skb queue */
     struct work_struct tx_ptp_work;     /* Tx PTP work */
     struct {
@@ -834,6 +832,9 @@ typedef struct bkn_priv_s {
     uint32_t cb_user_data;
     uint8_t system_headers[27];
     uint32_t system_headers_size;
+    int tx_hwts;                /* HW timestamp for Tx */
+    int rx_hwts;                /* HW timestamp for Rx */
+    int phys_port;
 } bkn_priv_t;
 
 typedef struct bkn_filter_s {
@@ -2504,32 +2505,14 @@ bkn_netif_lookup(bkn_switch_info_t *sinfo, int id)
 }
 
 static int
-bkn_hw_tstamp_rx_set(bkn_switch_info_t *sinfo, struct sk_buff *skb, uint32 *meta)
+bkn_hw_tstamp_rx_set(bkn_switch_info_t *sinfo, int phys_port, struct sk_buff *skb, uint32 *meta)
 {
     struct skb_shared_hwtstamps *shhwtstamps = skb_hwtstamps(skb);
-    uint32_t *md = meta;
     uint64_t ts = 0;
 
-    switch (sinfo->dcb_type) {
-    case 26:
-    case 32:
-    case 33:
-        ts = md[14];
-        ts = ts << 32 | md[12];
-        break;
-    case 36:
-        ts = md[10];
-        break;
-    case 38:
-        ts = md[4] & 0xffff;
-        ts = ts << 32 | md[5];
-        break;
-    default:
-        return -1;
-    }
 
     if (knet_hw_tstamp_rx_time_upscale_cb) {
-        if (knet_hw_tstamp_rx_time_upscale_cb(sinfo->dev_no, &ts) < 0) {
+        if (knet_hw_tstamp_rx_time_upscale_cb(sinfo->dev_no, phys_port, skb, &ts) < 0) {
           return -1;
         }
     }
@@ -3497,8 +3480,8 @@ bkn_do_api_rx(bkn_switch_info_t *sinfo, int chan, int budget)
                     }
 
                     /* Do Rx timestamping */
-                    if (sinfo->rx_hwts) {
-                        bkn_hw_tstamp_rx_set(sinfo, skb, meta);
+                    if (priv->rx_hwts) {
+                        bkn_hw_tstamp_rx_set(sinfo, priv->phys_port, skb, meta);
                     }
 
                     if (priv->flags & KCOM_NETIF_F_RCPU_ENCAP) {
@@ -3779,8 +3762,8 @@ bkn_do_skb_rx(bkn_switch_info_t *sinfo, int chan, int budget)
                     }
 
                     /* Do Rx timestamping */
-                    if (sinfo->rx_hwts) {
-                        bkn_hw_tstamp_rx_set(sinfo, skb, meta);
+                    if (priv->rx_hwts) {
+                        bkn_hw_tstamp_rx_set(sinfo, priv->phys_port, skb, meta);
                     }
 
                     if (priv->flags & KCOM_NETIF_F_RCPU_ENCAP) {
@@ -4610,6 +4593,22 @@ xgsx_isr(bkn_switch_info_t *sinfo)
         /* Not ours */
         return;
     }
+
+    /* Bypass chain_done from Abort */
+    if (device_is_dnx(sinfo)) {
+        uint32_t ctrl = 0;
+        int chan = 0;
+        for (chan = 0; chan < NUM_DMA_CHAN; chan++) {
+            if (irq_stat & CMICX_DS_CMC_CHAIN_DONE(chan)) {
+                DEV_READ32(sinfo, CMICX_DMA_CTRLr + 0x80 * chan, &ctrl);
+                if (ctrl & CMICX_DC_CMC_ABORT) {
+                    DBG_IRQ(("chain %d: chain done for Abort\n", chan));
+                    return;
+                }
+            }
+        }
+    }
+
     sinfo->interrupts++;
 
     DBG_IRQ(("Got interrupt on device %d (0x%08x)\n",
@@ -4762,7 +4761,11 @@ bkn_open(struct net_device *dev)
 static int
 bkn_set_mac_address(struct net_device *dev, void *addr)
 {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,18,12))
+    if (!is_valid_ether_addr((const u8*)(((struct sockaddr *)addr)->sa_data))) {
+#else
     if (!is_valid_ether_addr(((struct sockaddr *)addr)->sa_data)) {
+#endif
         return -EINVAL;
     }
     memcpy(dev->dev_addr, ((struct sockaddr *)addr)->sa_data, dev->addr_len);
@@ -4790,12 +4793,12 @@ bkn_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 
         switch (config.tx_type) {
         case HWTSTAMP_TX_OFF:
-            knet_hw_tstamp_disable_cb(sinfo->dev_no, priv->port);
-            sinfo->tx_hwts = 0;
+            knet_hw_tstamp_disable_cb(sinfo->dev_no, priv->phys_port);
+            priv->tx_hwts = 0;
             break;
         case HWTSTAMP_TX_ON:
-            knet_hw_tstamp_enable_cb(sinfo->dev_no, priv->port);
-            sinfo->tx_hwts = 1;
+            knet_hw_tstamp_enable_cb(sinfo->dev_no, priv->phys_port);
+            priv->tx_hwts = 1;
             break;
         default:
             return -ERANGE;
@@ -4803,15 +4806,15 @@ bkn_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 
         switch (config.rx_filter) {
         case HWTSTAMP_FILTER_NONE:
-            if (sinfo->rx_hwts) {
-                knet_hw_tstamp_disable_cb(sinfo->dev_no, priv->port);
-                sinfo->rx_hwts = 0;
+            if (priv->rx_hwts) {
+                knet_hw_tstamp_disable_cb(sinfo->dev_no, priv->phys_port);
+                priv->rx_hwts = 0;
             }
             break;
         default:
-            if (!sinfo->rx_hwts) {
-                knet_hw_tstamp_enable_cb(sinfo->dev_no, priv->port);
-                sinfo->rx_hwts = 1;
+            if (!priv->rx_hwts) {
+                knet_hw_tstamp_enable_cb(sinfo->dev_no, priv->phys_port);
+                priv->rx_hwts = 1;
             }
             config.rx_filter = HWTSTAMP_FILTER_ALL;
             break;
@@ -4823,8 +4826,8 @@ bkn_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0))
     if (cmd == SIOCGHWTSTAMP) {
         config.flags = 0;
-        config.tx_type = sinfo->tx_hwts ? HWTSTAMP_TX_ON : HWTSTAMP_TX_OFF;
-        config.rx_filter = sinfo->rx_hwts ? HWTSTAMP_FILTER_ALL : HWTSTAMP_FILTER_NONE;
+        config.tx_type = priv->tx_hwts ? HWTSTAMP_TX_ON : HWTSTAMP_TX_OFF;
+        config.rx_filter = priv->rx_hwts ? HWTSTAMP_FILTER_ALL : HWTSTAMP_FILTER_NONE;
 
         return copy_to_user(ifr->ifr_data, &config, sizeof(config)) ? -EFAULT : 0;
     }
@@ -5010,10 +5013,16 @@ bkn_tx(struct sk_buff *skb, struct net_device *dev)
     uint32_t *metadata;
     unsigned long flags;
 
-    DBG_VERB(("Netif Tx: Len=%d\n", skb->len));
+    DBG_VERB(("Netif Tx: Len=%d priv->id=%d\n", skb->len, priv->id));
 
     if (priv->id <= 0) {
         /* Do not transmit on base device */
+        priv->stats.tx_dropped++;
+        dev_kfree_skb_any(skb);
+        return 0;
+    }
+
+    if (device_is_dnx(sinfo) && (skb->len == 0)) {
         priv->stats.tx_dropped++;
         dev_kfree_skb_any(skb);
         return 0;
@@ -5108,6 +5117,7 @@ bkn_tx(struct sk_buff *skb, struct net_device *dev)
                         memcpy(new_skb->data, pktdata, 12);
                         memcpy(&new_skb->data[16], &pktdata[12], pktlen - 12);
                         skb_put(new_skb, pktlen + TAG_SZ);
+                        bkn_skb_tx_flags(new_skb) = bkn_skb_tx_flags(skb);
                         dev_kfree_skb_any(skb);
                         skb = new_skb;
                         pktdata = skb->data;
@@ -5148,6 +5158,7 @@ bkn_tx(struct sk_buff *skb, struct net_device *dev)
                     }
                     memcpy(new_skb->data + hdrlen, skb->data, pktlen);
                     skb_put(new_skb, pktlen + hdrlen);
+                    bkn_skb_tx_flags(new_skb) = bkn_skb_tx_flags(skb);
                     dev_kfree_skb_any(skb);
                     skb = new_skb;
                 } else {
@@ -5182,6 +5193,7 @@ bkn_tx(struct sk_buff *skb, struct net_device *dev)
                         memcpy(&new_skb->data[hdrlen + 16], &skb->data[hdrlen + 12],
                                pktlen - hdrlen - 12);
                         skb_put(new_skb, pktlen + TAG_SZ);
+                        bkn_skb_tx_flags(new_skb) = bkn_skb_tx_flags(skb);
                         dev_kfree_skb_any(skb);
                         skb = new_skb;
                     } else {
@@ -5345,6 +5357,19 @@ bkn_tx(struct sk_buff *skb, struct net_device *dev)
                     memcpy(&pktdata[0], priv->system_headers, priv->system_headers_size);
                 }
                 break;
+            case 40:
+                if (sinfo->cmic_type == 'x') {
+                    meta[0] = htonl(0x81000000);
+                    meta[1] = htonl(priv->port | (priv->qnum & 0xc00) << 20);
+                    meta[2] = htonl(0x00040000 | (priv->qnum & 0x3ff) << 8);
+                } else {
+                    dcb[2] = 0x81000000;
+                    dcb[3] = priv->port;
+                    dcb[3] |= (priv->qnum & 0xc00) << 20;
+                    dcb[4] = 0x00040000;
+                    dcb[4] |= (priv->qnum & 0x3ff) << 8;
+                }
+                break;
             default:
                 dcb[2] = 0xff000000;
                 dcb[3] = 0x00000100;
@@ -5401,8 +5426,8 @@ bkn_tx(struct sk_buff *skb, struct net_device *dev)
 
         /* Do Tx timestamping */
         if (priv->port >= 0) {
-            if (bkn_skb_tx_flags(skb) & SKBTX_HW_TSTAMP && sinfo->tx_hwts) {
-                KNET_SKB_CB(skb)->port = priv->port;
+            if (bkn_skb_tx_flags(skb) & SKBTX_HW_TSTAMP && priv->tx_hwts) {
+                KNET_SKB_CB(skb)->port = priv->phys_port;
                 bkn_hw_tstamp_tx_config(sinfo, skb, meta);
                 bkn_skb_tx_flags(skb) |= SKBTX_IN_PROGRESS;
             }
@@ -5784,6 +5809,7 @@ bkn_get_ts_info(struct net_device *dev, struct ethtool_ts_info *info)
     case 33:
     case 36:
     case 38:
+    case 40:
         info->so_timestamping = SOF_TIMESTAMPING_TX_HARDWARE |
                                 SOF_TIMESTAMPING_TX_SOFTWARE |
                                 SOF_TIMESTAMPING_RX_HARDWARE |
@@ -7319,11 +7345,17 @@ bkn_knet_netif_create(kcom_msg_netif_create_t *kmsg, int len)
     priv->vlan = kmsg->netif.vlan;
     /* System headers are mandatory for DNX devices */
     if (device_is_sand(sinfo)) {
-        memcpy(priv->system_headers, kmsg->netif.system_headers, kmsg->netif.system_headers_size);
+        int i = 0;
+
+        for (i = 0; i < KCOM_NETIF_SYSTEM_HEADERS_SIZE_MAX; i++)
+        {
+            priv->system_headers[i] = kmsg->netif.system_headers[i];
+        }
         priv->system_headers_size = kmsg->netif.system_headers_size;
     }
     if (priv->type == KCOM_NETIF_T_PORT) {
         priv->port = kmsg->netif.port;
+        priv->phys_port = kmsg->netif.phys_port;
         priv->qnum = kmsg->netif.qnum;
     } else {
         if (device_is_sand(sinfo)) {
@@ -7603,13 +7635,20 @@ bkn_knet_filter_create(kcom_msg_filter_create_t *kmsg, int len)
     memcpy(&filter->kf, &kmsg->filter, sizeof(filter->kf));
 
     if (device_is_dnx(sinfo)) {
+        int i = 0;
         /* Information to parser Dune system headers */
         sinfo->ftmh_lb_key_ext_size = kmsg->filter.ftmh_lb_key_ext_size;
         sinfo->ftmh_stacking_ext_size = kmsg->filter.ftmh_stacking_ext_size;
         sinfo->pph_base_size = kmsg->filter.pph_base_size;
-        memcpy(sinfo->pph_lif_ext_size, kmsg->filter.pph_lif_ext_size, sizeof(sinfo->pph_lif_ext_size));
+        for (i = 0; i < 8; i++)
+        {
+            sinfo->pph_lif_ext_size[i] = kmsg->filter.pph_lif_ext_size[i];
+        }
         sinfo->udh_enable = kmsg->filter.udh_enable;
-        memcpy(sinfo->udh_length_type, kmsg->filter.udh_length_type, sizeof(sinfo->udh_length_type));
+        for (i = 0; i < 4; i++)
+        {
+            sinfo->udh_length_type[i] = kmsg->filter.udh_length_type[i];
+        }
     }
     filter->kf.id = id;
 
@@ -7966,10 +8005,14 @@ bkn_get_next_dma_event(kcom_msg_dma_info_t *kmsg)
 
         if (sinfo && (sinfo->inst_id != 0) &&
            ((sinfo->inst_id & (1 << dev_evt)) == 0)) {
-            DBG_INST((" %s skip dev(%d)\n",__FUNCTION__,dev_evt));
+            DBG_INST((" %s skip dev(%d)\n",__FUNCTION__,dev_no));
             continue;
         }
 
+        if (sinfo->evt_idx == -1) {
+            /* Event queue is not ready yet */
+            continue;
+        }
         if (sinfo && sinfo->dma_events) {
             DBG_EVT(("Next DMA events (0x%08x)\n", sinfo->dma_events));
             kmsg->hdr.unit = sinfo->dev_no;
@@ -7983,9 +8026,11 @@ bkn_get_next_dma_event(kcom_msg_dma_info_t *kmsg)
             break;
         }
 
-        if (dev_no == last_dev_no) {
+        if ((dev_no == last_dev_no) ||
+            (_bkn_multi_inst && (dev_no == dev_evt))) {
             evt = &_bkn_evt[sinfo->evt_idx];
-            DBG_INST(("wait queue index %d\n",sinfo->evt_idx));
+            DBG_INST(("dev_no %d dev_evt %d wait queue index %d\n",
+                      dev_no, dev_evt, sinfo->evt_idx));
             wait_event_interruptible(evt->evt_wq,
                                      evt->evt_wq_get != evt->evt_wq_put);
             DBG_VERB(("Event thread wakeup\n"));
@@ -8283,7 +8328,7 @@ _ioctl(unsigned int cmd, unsigned long arg)
             io.len = bkn_handle_cmd_req(&kmsg, io.len);
             ioctl_cmd--;
         } else {
-            memset(&kmsg, 0, sizeof(kcom_msg_dma_info_t));
+            memset(&kmsg, 0, sizeof(kcom_msg_t));
             /*
              * Retrive the kmsg.hdr.unit from user space. The dma event queue
              * selection is based the instance derived from unit.
