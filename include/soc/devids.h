@@ -14,7 +14,7 @@
  * version 2 (GPLv2) along with this source code.
  */
 /*
- * Copyright: (c) 2019 Broadcom.
+ * Copyright: (c) 2020 Broadcom.
  * All Rights Reserved.
  */
 
@@ -1499,8 +1499,6 @@
 #define BCM56471_A0_REV_ID      1
 #define BCM56472_DEVICE_ID      0xb472
 #define BCM56472_A0_REV_ID      1
-#define BCM56473_DEVICE_ID      0xb473
-#define BCM56473_A0_REV_ID      1
 
 
 #define BCM53540_DEVICE_ID      0x8540
@@ -1789,9 +1787,11 @@
 #define Q2A_DEVICE_ID           0x8480 
 #define Q2A_A0_REV_ID           DNXC_A0_REV_ID
 #define Q2A_B0_REV_ID           DNXC_B0_REV_ID
+#define Q2A_B1_REV_ID           DNXC_B1_REV_ID
 #define BCM88480_DEVICE_ID      Q2A_DEVICE_ID
 #define BCM88480_A0_REV_ID      Q2A_A0_REV_ID
 #define BCM88480_B0_REV_ID      Q2A_B0_REV_ID
+#define BCM88480_B1_REV_ID      Q2A_B1_REV_ID
 #define BCM88481_DEVICE_ID      0x8481
 #define BCM88482_DEVICE_ID      0x8482
 #define BCM88483_DEVICE_ID      0x8483
@@ -1930,6 +1930,7 @@
 #define BCM56883_DEVICE_ID 0xb883
 #define BCM56883_A0_REV_ID 0x0001
 #define BCM56883_B0_REV_ID 0x0011
+
 #endif 
 #endif  
 

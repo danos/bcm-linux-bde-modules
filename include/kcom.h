@@ -59,8 +59,9 @@
 #define KCOM_M_DBGPKT_SET       41 /* Enbale debug packet function */
 #define KCOM_M_DBGPKT_GET       42 /* Get debug packet function info */
 #define KCOM_M_WB_CLEANUP       51 /* Clean up for warmbooting */
+#define KCOM_M_CLOCK_CMD        52 /* Clock Commands */
 
-#define KCOM_VERSION            11 /* Protocol version */
+#define KCOM_VERSION            12 /* Protocol version */
 
 /*
  * Message status codes
@@ -224,13 +225,6 @@ typedef struct kcom_filter_s {
         uint8 b[KCOM_FILTER_BYTES_MAX];
         uint32 w[KCOM_FILTER_WORDS_MAX];
     } mask;
-    /** Information to parse Dune system headers */
-    uint32 ftmh_lb_key_ext_size;
-    uint32 ftmh_stacking_ext_size;
-    uint32 pph_base_size;
-    uint32 pph_lif_ext_size[8];
-    uint8  udh_enable;
-    uint32 udh_length_type[4];
     /** Mark to match source modid and modport */
     uint8  is_src_modport;
     uint8  spa_unit;
@@ -341,6 +335,19 @@ typedef struct kcom_msg_version_s {
 } kcom_msg_version_t;
 
 /*
+ * Request KCOM interface clock info.
+ */
+#define KSYNC_M_HW_INIT            0
+#define KSYNC_M_HW_DEINIT          1
+#define KSYNC_M_VERSION            2
+#define KSYNC_M_HW_TS_DISABLE      3
+
+typedef struct kcom_clock_info_s {
+    uint8 cmd;
+    int32 data[8];
+} kcom_clock_info_t;
+
+/*
  * Send literal string to/from kernel module.
  * Mainly for debugging purposes.
  */
@@ -388,6 +395,19 @@ typedef struct kcom_msg_hw_init_s {
     uint8 pkt_hdr_size;
     uint32 dma_hi;
     uint32 cdma_channels;
+    /*
+     * Information to parse Dune system headers
+     */
+    uint32 ftmh_lb_key_ext_size;
+    uint32 ftmh_stacking_ext_size;
+    uint32 pph_base_size;
+    uint32 pph_lif_ext_size[8];
+    uint32 udh_length_type[4];
+    uint32 udh_size;
+    uint32 oamp_punted;
+    uint8 no_skip_udh_check;
+    uint8 system_headers_mode;
+    uint8 udh_enable;
 } kcom_msg_hw_init_t;
 
 /*
@@ -446,6 +466,14 @@ typedef struct kcom_msg_netif_create_s {
 typedef struct kcom_msg_netif_destroy_s {
     kcom_msg_hdr_t hdr;
 } kcom_msg_netif_destroy_t;
+
+/*
+ * Destroy system network interface.
+ */
+typedef struct kcom_msg_clock_s{
+    kcom_msg_hdr_t hdr;
+    kcom_clock_info_t clock_info;
+} kcom_msg_clock_cmd_t;
 
 /*
  * Get list of currently defined system network interfaces.
@@ -537,6 +565,7 @@ typedef union kcom_msg_s {
     kcom_msg_dbg_pkt_set_t dbg_pkt_set;
     kcom_msg_dbg_pkt_get_t dbg_pkt_get;
     kcom_msg_wb_cleanup_t wb_cleanup;
+    kcom_msg_clock_cmd_t clock_cmd;
 } kcom_msg_t;
 
 /*

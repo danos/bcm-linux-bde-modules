@@ -290,8 +290,9 @@ shbde_iproc_paxb_init(shbde_hal_t *shbde, void *iproc_regs,
         }
     }
 
-    /* Configure MSIX interrupt page, only need for iproc ver == 0x10 */
-    if ((icfg->use_msi == 2) && (icfg->iproc_ver == 0x10)) {
+    /* Configure MSIX interrupt page, need for iproc ver 0x10 and 0x12 */
+    if ((icfg->use_msi == 2) &&
+        ((icfg->iproc_ver == 0x10) || (icfg->iproc_ver == 0x12))){
         unsigned int mask = (0x1 << PAXB_0_FUNC0_IMAP1_3_ADDR_SHIFT) - 1;
         reg = ROFFS(iproc_regs, PAXB_0_FUNC0_IMAP1_3);
         data = iproc32_read(shbde, reg);

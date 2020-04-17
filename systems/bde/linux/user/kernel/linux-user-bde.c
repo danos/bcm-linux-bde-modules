@@ -1271,6 +1271,7 @@ _ioctl(unsigned int cmd, unsigned long arg)
         if (bde_dev) {
             io.d0 = bde_dev->device;
             io.d1 = bde_dev->rev;
+            io.dx.dw[0] = bde_dev->dev_unique_id;
             if (BDE_DEV_MEM_MAPPED(_devices[io.dev].dev_type)) {
                 /* Get physical address to map */
                 io.d2 = lkbde_get_dev_phys(io.dev);
@@ -1325,8 +1326,10 @@ _ioctl(unsigned int cmd, unsigned long arg)
         io.dx.dw[0] = cpu_pbase;
 #ifdef PHYS_ADDRS_ARE_64BITS
         io.dx.dw[1] = cpu_pbase >> 32;
+        io.d3 = dma_pbase >> 32;
 #else
         io.dx.dw[1] = 0;
+        io.d3 = 0;
 #endif
         break;
     case LUBDE_ENABLE_INTERRUPTS:

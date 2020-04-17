@@ -30,21 +30,21 @@
 
 #include "linux_shbde.h"
 
-#ifdef __GNUC__
-#if __GNUC__ == 8
+#define MEMCPY memcpy
+
+#ifdef CONFIG_X86_64
+#if (defined(__GNUC__) && (__GNUC__ == 8))
 /*
  * Prevent gcc 8.1.10 using a compiler inline memcpy even if using -fno-builtin or
  * -fno-builtin-memcpy .
  * __inline_memcpy and __memcpy are kernel functions that may be used instead,
  * for either an inline or non-inline implementations of the function
  */
-#define MEMCPY __inline_memcpy
-#else
-#define MEMCPY memcpy
-#endif /* __GNUC__ == 8 */
-#else /* ifdef __GNUC__ */
-#define MEMCPY memcpy
-#endif /* ifdef __GNUC__ */
+#undef MEMCPY
+#define MEMCPY __memcpy
+#endif /* (defined(__GNUC__) && (__GNUC__ == 8)) */
+#endif /* CONFIG_X86_64 */
+
 
 #if defined(CMIC_SOFT_BYTE_SWAP)
 #define CMIC_SWAP32(_x)   ((((_x) & 0xff000000) >> 24) \
@@ -69,8 +69,15 @@ MODULE_AUTHOR("Broadcom Corporation");
 MODULE_DESCRIPTION("Kernel BDE");
 MODULE_LICENSE("GPL");
 
-/* PCIe max payload */
-int maxpayload = 256;
+/*
+ * PCIe max payload size in bytes.
+ * The default value if not specified to the kernel module by maxpayload is historically 256.
+ * The default value may be changed using the BDE_PCIE_MAXPAYLOAD_DEFAULT macro.
+ */
+#ifndef BDE_PCIE_MAXPAYLOAD_DEFAULT
+#define BDE_PCIE_MAXPAYLOAD_DEFAULT 256
+#endif
+int maxpayload = BDE_PCIE_MAXPAYLOAD_DEFAULT;
 LKM_MOD_PARAM(maxpayload, "i", int, 0);
 MODULE_PARM_DESC(maxpayload,
 "Limit maximum payload size and request size on PCIe devices");
@@ -1526,6 +1533,7 @@ static const struct pci_device_id _id_table[] = {
     { BROADCOM_VENDOR_ID, BCM88803_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { BROADCOM_VENDOR_ID, BCM88804_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { BROADCOM_VENDOR_ID, BCM88805_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
+    { BROADCOM_VENDOR_ID, BCM88806_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { BROADCOM_VENDOR_ID, BCM88820_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { BROADCOM_VENDOR_ID, BCM88822_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { BROADCOM_VENDOR_ID, BCM88823_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
@@ -1628,6 +1636,8 @@ static const struct pci_device_id _id_table[] = {
     { BROADCOM_VENDOR_ID, BCM53548_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { BROADCOM_VENDOR_ID, BCM53549_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { BROADCOM_VENDOR_ID, BCM56470_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
+    { BROADCOM_VENDOR_ID, BCM56471_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
+    { BROADCOM_VENDOR_ID, BCM56472_DEVICE_ID, PCI_ANY_ID, PCI_ANY_ID },
     { 0, 0, 0, 0 }
 };;
 
@@ -2279,7 +2289,7 @@ _pci_probe(struct pci_dev *dev, const struct pci_device_id *ent)
         }        
     }
 #endif /* IPROC_CMICD */
-
+    
     /*
      * Note that a few supported devices have a non-Broadcom PCI vendor ID,
      * but since none of their associated PCI device IDs collide with the
@@ -2501,7 +2511,7 @@ _pci_probe(struct pci_dev *dev, const struct pci_device_id *ent)
             ((PCI_FIND_DEV(BCM58525_PCI_VENDOR_ID, BCM58522_PCI_DEVICE_ID, NULL)) != NULL) ||
             ((PCI_FIND_DEV(BCM58712_PCI_VENDOR_ID, BCM58712_PCI_DEVICE_ID, NULL)) != NULL) ) {
             /* BCM58525/BCM58712 CPU boards support 128 Max payload size */
-            if (maxpayload) {
+            if (maxpayload && maxpayload != 128) {
                 maxpayload = 128;
                 if (debug >= 1) gprintk("force max payload size to 128\n");
             }
@@ -2569,6 +2579,15 @@ _pci_probe(struct pci_dev *dev, const struct pci_device_id *ent)
     ctrl->dev_type |= BDE_PCI_DEV_TYPE;
     ctrl->pci_device = dev;
     pci_set_drvdata(dev, ctrl);
+
+    /*
+     * Sample setting of unique ID, used the PCIe address of the device:
+     * domain, bus, slot, function in hex digits: DDDDBBSS (SS includes the slot/device and function.
+     * Tested with old kernels from 2.6 .
+     * Do not use the PCI_DEVID macro which old kernel versions don't have. */
+    ctrl->bde_dev.dev_unique_id = dev->bus ?
+      (((uint32)pci_domain_nr(dev->bus)) << 16) ^ (((uint32)dev->bus->number) << 8) ^ dev->devfn :
+      dev->devfn;
 
     /* Check for iProc device */
     if (shbde_pci_is_iproc(shbde, dev, &cmic_bar)) {
