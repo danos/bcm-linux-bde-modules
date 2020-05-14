@@ -300,3 +300,29 @@
 +
 +LINUX_MAKE_USER=1
 +include ${SDK}/make/Make.linux
+--- a/systems/linux/kernel/modules/shared/ksal.c
++++ b/systems/linux/kernel/modules/shared/ksal.c
+@@ -180,9 +180,9 @@ sal_sem_give(sal_sem_t b)
+ uint32
+ sal_time_usecs(void)
+ {
+-    struct timeval ltv;
+-    do_gettimeofday(&ltv);
+-    return (ltv.tv_sec * SECOND_USEC + ltv.tv_usec);
++    struct timespec64 ltv;
++    ktime_get_real_ts64(&ltv);
++    return (ltv.tv_sec * SECOND_USEC + ltv.tv_nsec / 1000);
+ }
+     
+ void
+--- a/systems/bde/linux/kernel/linux-kernel-bde.c
++++ b/systems/bde/linux/kernel/linux-kernel-bde.c
+@@ -45,7 +45,7 @@
+  * __inline_memcpy and __memcpy are kernel functions that may be used instead,
+  * for either an inline or non-inline implementations of the function
+  */
+-#define MEMCPY __inline_memcpy
++#define MEMCPY __builtin_memcpy
+ #else
+ #define MEMCPY memcpy
+ #endif /* __GNUC__ == 8 */
