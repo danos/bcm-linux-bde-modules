@@ -315,14 +315,3 @@
  }
      
  void
---- a/systems/bde/linux/kernel/linux-kernel-bde.c
-+++ b/systems/bde/linux/kernel/linux-kernel-bde.c
-@@ -45,7 +45,7 @@
-  * __inline_memcpy and __memcpy are kernel functions that may be used instead,
-  * for either an inline or non-inline implementations of the function
-  */
--#define MEMCPY __inline_memcpy
-+#define MEMCPY __builtin_memcpy
- #else
- #define MEMCPY memcpy
- #endif /* __GNUC__ == 8 */
