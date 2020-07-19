@@ -5324,6 +5324,7 @@ bkn_tx(struct sk_buff *skb, struct net_device *dev)
     uint32_t *metadata;
     unsigned long flags;
     uint32_t cpu_channel = 0;
+    int headroom, tailroom;
 
     DBG_VERB(("Netif Tx: Len=%d priv->id=%d\n", skb->len, priv->id));
 
@@ -5431,7 +5432,16 @@ bkn_tx(struct sk_buff *skb, struct net_device *dev)
                         if (skb_header_cloned(skb)) {
                             /* Current SKB cannot be modified */
                             DBG_SKB(("Realloc Tx SKB\n"));
-                            new_skb = dev_alloc_skb(pktlen + TAG_SZ + FCS_SZ);
+                            /*
+                             * New SKB needs extra TAG_SZ for VLAN tag
+                             * and extra FCS_SZ for Ethernet FCS.
+                             */
+                            headroom = TAG_SZ;
+                            tailroom = FCS_SZ;
+                            new_skb = skb_copy_expand(skb,
+                                                      headroom + skb_headroom(skb),
+                                                      tailroom + skb_tailroom(skb),
+                                                      GFP_ATOMIC);
                             if (new_skb == NULL) {
                                 DBG_WARN(("Tx drop: No SKB memory\n"));
                                 priv->stats.tx_dropped++;
@@ -5440,9 +5450,12 @@ bkn_tx(struct sk_buff *skb, struct net_device *dev)
                                 spin_unlock_irqrestore(&sinfo->lock, flags);
                                 return 0;
                             }
+                            /* Remove rcpulen from buffer. */
+                            skb_pull(new_skb, rcpulen);
+                            /* Extended by TAG_SZ at the start of buffer. */
+                            skb_push(new_skb, TAG_SZ);
+                            /* Restore the data before the tag. */
                             memcpy(new_skb->data, pktdata, 12);
-                            memcpy(&new_skb->data[16], &pktdata[12], pktlen - 12);
-                            skb_put(new_skb, pktlen + TAG_SZ);
                             bkn_skb_tstamp_copy(new_skb, skb);
                             dev_kfree_skb_any(skb);
                             skb = new_skb;
@@ -5471,7 +5484,16 @@ bkn_tx(struct sk_buff *skb, struct net_device *dev)
                 if (skb_header_cloned(skb) || skb_headroom(skb) < hdrlen + 4) {
                     /* Current SKB cannot be modified */
                     DBG_SKB(("Realloc Tx SKB\n"));
-                    new_skb = dev_alloc_skb(pktlen + hdrlen + 4 + FCS_SZ);
+                    if (device_is_sand(sinfo)) {
+                        headroom = hdrlen;
+                    } else {
+                        headroom = hdrlen + 4;
+                    }
+                    tailroom = FCS_SZ;
+                    new_skb = skb_copy_expand(skb,
+                                              headroom + skb_headroom(skb),
+                                              tailroom + skb_tailroom(skb),
+                                              GFP_ATOMIC);
                     if (new_skb == NULL) {
                         DBG_WARN(("Tx drop: No SKB memory\n"));
                         priv->stats.tx_dropped++;
@@ -5480,12 +5502,7 @@ bkn_tx(struct sk_buff *skb, struct net_device *dev)
                         spin_unlock_irqrestore(&sinfo->lock, flags);
                         return 0;
                     }
-                    if (!device_is_sand(sinfo))
-                    {
-                        skb_reserve(new_skb, 4);
-                    }
-                    memcpy(new_skb->data + hdrlen, skb->data, pktlen);
-                    skb_put(new_skb, pktlen + hdrlen);
+                    skb_push(new_skb, hdrlen);
                     bkn_skb_tstamp_copy(new_skb, skb);
                     dev_kfree_skb_any(skb);
                     skb = new_skb;
@@ -5508,7 +5525,12 @@ bkn_tx(struct sk_buff *skb, struct net_device *dev)
                     if (skb_header_cloned(skb) || skb_headroom(skb) < 4) {
                         /* Current SKB cannot be modified */
                         DBG_SKB(("Realloc Tx SKB\n"));
-                        new_skb = dev_alloc_skb(pktlen + TAG_SZ + FCS_SZ);
+                        headroom = TAG_SZ;
+                        tailroom = FCS_SZ;
+                        new_skb = skb_copy_expand(skb,
+                                                  headroom + skb_headroom(skb),
+                                                  tailroom + skb_tailroom(skb),
+                                                  GFP_ATOMIC);
                         if (new_skb == NULL) {
                             DBG_WARN(("Tx drop: No SKB memory\n"));
                             priv->stats.tx_dropped++;
@@ -5517,10 +5539,8 @@ bkn_tx(struct sk_buff *skb, struct net_device *dev)
                             spin_unlock_irqrestore(&sinfo->lock, flags);
                             return 0;
                         }
-                        memcpy(new_skb->data, skb->data, hdrlen + 12);
-                        memcpy(&new_skb->data[hdrlen + 16], &skb->data[hdrlen + 12],
-                               pktlen - hdrlen - 12);
-                        skb_put(new_skb, pktlen + TAG_SZ);
+                        skb_push(new_skb, TAG_SZ);
+                        memcpy(new_skb->data, pktdata, hdrlen + 12);
                         bkn_skb_tstamp_copy(new_skb, skb);
                         dev_kfree_skb_any(skb);
                         skb = new_skb;
