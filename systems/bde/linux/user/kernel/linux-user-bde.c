@@ -24,7 +24,7 @@
 #include <sal/core/thread.h>
 #include <sal/core/sync.h>
 #include <soc/devids.h>
-
+#include <linux/jiffies.h>
 #include "linux-user-bde.h"
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
@@ -71,7 +71,7 @@ MODULE_LICENSE("GPL");
 
 /* CMICX defines */
 #define INTC_INTR_REG_NUM               (8)
-
+#define PAXB_INTRCLR_DELAY_REG_NUM      (16)
 /*
 TODO:HX5
 The INTR base address values are changed for HX5,
@@ -80,15 +80,27 @@ be made.
 */
 #define PAXB_0_PAXB_IC_INTRCLR_0       (0x180123a0)
 #define PAXB_0_PAXB_IC_INTRCLR_1       (0x180123a4)
-
 #define PAXB_0_PAXB_IC_INTRCLR_MODE_0  (0x180123a8)
 #define PAXB_0_PAXB_IC_INTRCLR_MODE_1  (0x180123ac)
+#define PAXB_0_PAXB_INTR_STATUS             (0x18012f38)
+#define PAXB_0_PAXB_IC_INTR_PACING_CTRL     (0x18012398)
+#define PAXB_0_PAXB_INTRCLR_DELAY_UNIT      (0x1801239c)
+#define PAXB_0_PAXB_IC_INTRCLR_DELAY_REG0   (0x180123b0)
+#define PAXB_0_PCIE_ERROR_STATUS            (0x18012024)
 
 #define HX5_PAXB_0_PAXB_IC_INTRCLR_0   (0x102303a0)
 #define HX5_PAXB_0_PAXB_IC_INTRCLR_1   (0x102303a4)
 
 #define HX5_PAXB_0_PAXB_IC_INTRCLR_MODE_0   (0x102303a8)
 #define HX5_PAXB_0_PAXB_IC_INTRCLR_MODE_1   (0x102303ac)
+#define HX5_PAXB_0_PAXB_INTR_STATUS         (0x10230f38)
+#define HX5_PAXB_0_PAXB_IC_INTR_PACING_CTRL (0x10230398)
+#define HX5_PAXB_0_PAXB_INTRCLR_DELAY_UNIT  (0x1023039c)
+#define HX5_PAXB_0_PAXB_IC_INTRCLR_DELAY_REG0 (0x102303b0)
+#define HX5_PAXB_0_PCIE_ERROR_STATUS          (0x10230024)
+
+#define PAXB_0_PAXB_IC_INTRCLR_DELAY_BASE     (PAXB_0_PAXB_IC_INTRCLR_DELAY_REG0)
+#define HX5_PAXB_0_PAXB_IC_INTRCLR_DELAY_BASE (HX5_PAXB_0_PAXB_IC_INTRCLR_DELAY_REG0)
 
 #define INTC_INTR_ENABLE_REG0          (0x180130f0)
 #define INTC_INTR_STATUS_REG0          (0x18013190)
@@ -155,6 +167,23 @@ be made.
 static uint32 *ihost_intr_status_base = NULL;
 static uint32 *ihost_intr_enable_base = NULL;
 
+/* Module parameter for Interruptible timeout */
+static int intr_timeout = 0;
+LKM_MOD_PARAM(intr_timeout, "i", int, (S_IRUGO | S_IWUSR));
+MODULE_PARM_DESC(intr_timeout,
+"Interruptible wait timeout in milliseconds for Interrupt to be triggered.");
+
+static ulong intr_count = 0;
+LKM_MOD_PARAM(intr_count, "intr_count", ulong, (S_IRUGO | S_IWUSR));
+MODULE_PARM_DESC(intr_count,
+"Interrupt count provides information about the number of times the ISR is called.");
+
+/* Debug output */
+static int debug;
+LKM_MOD_PARAM(debug, "i", int, (S_IRUGO | S_IWUSR));
+MODULE_PARM_DESC(debug,
+"Set debug level (default 0).");
+
 static ibde_t *user_bde = NULL;
 
 typedef void (*isr_f)(void *);
@@ -162,10 +191,16 @@ typedef void (*isr_f)(void *);
 typedef struct _intr_regs_s {
     uint32 intc_intr_status_base;
     uint32 intc_intr_enable_base;
+    uint32 intc_intr_raw_status_base;
     uint32 intc_intr_clear_0;
     uint32 intc_intr_clear_1;
     uint32 intc_intr_clear_mode_0;
     uint32 intc_intr_clear_mode_1;
+    uint32 intc_intr_status;
+    uint32 intc_intr_pacing_ctrl;
+    uint32 intc_intr_clear_delay_unit;
+    uint32 intc_intr_clear_delay_base;
+    uint32 intc_intr_pcie_err_status;
 } _intr_regs_t;
 
 typedef struct bde_ctrl_s {
@@ -176,6 +211,7 @@ typedef struct bde_ctrl_s {
     isr_f isr;
     uint32 *ba;
     int inst;   /* associate to _bde_inst_resource[] */
+    int timeout_count;
     _intr_regs_t intr_regs;
 } bde_ctrl_t;
 
@@ -281,22 +317,60 @@ _cmic_interrupt(bde_ctrl_t *ctrl)
 #endif
 }
 
-static void 
-_cmicx_interrupt(bde_ctrl_t *ctrl)
+void
+dump_interrupt_regs(bde_ctrl_t *ctrl , int dev)
+{
+    int ind;
+    uint32_t val;
+
+    if (debug >= 2) {
+        gprintk("Interrupt timeout count = %d\n", ctrl->timeout_count);
+        gprintk("Interrupt count = %lu\n", intr_count);
+        for (ind = 0; ind < INTC_INTR_REG_NUM; ind++) {
+            READ_INTC_INTR(dev, ctrl->intr_regs.intc_intr_status_base + 4 * ind, val);
+            gprintk("INTC_INTR_STATUS_REG_%d = 0x%x\n", ind, val);
+            READ_INTC_INTR(dev, ctrl->intr_regs.intc_intr_raw_status_base + 4 * ind, val);
+            gprintk("INTC_INTR_RAW_STATUS_REG_%d = 0x%x\n", ind, val);
+            READ_INTC_INTR(dev, ctrl->intr_regs.intc_intr_enable_base + 4 * ind, val);
+            gprintk("INTC_INTR_ENABLE_REG_%d = 0x%x\n", ind, val);
+        }
+        /* Dump PAXB Register */
+        READ_INTC_INTR(dev, ctrl->intr_regs.intc_intr_status, val);
+        gprintk("PAXB_0_PAXB_INTR_STATUS = 0x%x\n", val);
+        READ_INTC_INTR(dev, ctrl->intr_regs.intc_intr_pacing_ctrl, val);
+        gprintk("PAXB_0_PAXB_IC_INTR_PACING_CTRL = 0x%x\n", val);
+        READ_INTC_INTR(dev, ctrl->intr_regs.intc_intr_clear_delay_unit, val);
+        gprintk("PAXB_0_PAXB_INTRCLR_DELAY_UNIT = 0x%x\n", val);
+        READ_INTC_INTR(dev, ctrl->intr_regs.intc_intr_pcie_err_status, val);
+        gprintk("PAXB_0_PCIE_ERROR_STATUS = 0x%x\n", val);
+
+        for (ind = 0; ind < PAXB_INTRCLR_DELAY_REG_NUM; ind++) {
+            READ_INTC_INTR(dev, ctrl->intr_regs.intc_intr_clear_delay_base + 4 * ind, val);
+            gprintk("PAXB_0_PAXB_IC_INTRCLR_DELAY_REG_%d = 0x%x\n", ind, val);
+        }
+    }
+    /* Clear interrupt enable registers */
+    for (ind = 0; ind < INTC_INTR_REG_NUM; ind++) {
+        WRITE_INTC_INTR(dev, ctrl->intr_regs.intc_intr_enable_base + 4 * ind, 0);
+    }
+}
+
+static int
+_cmicx_interrupt_prepare(bde_ctrl_t *ctrl)
 {
     int d, ind;
     uint32 stat, iena, mask, fmask;
-    bde_inst_resource_t *res;
 
     d = (((uint8 *)ctrl - (uint8 *)_devices) / sizeof (bde_ctrl_t));
 
     if (ctrl->dev_type & BDE_PCI_DEV_TYPE) {
+        READ_INTC_INTR(d, ctrl->intr_regs.intc_intr_clear_mode_0, stat);
         /* Clear MSI interrupts immediately to prevent spurious interrupts */
-        WRITE_INTC_INTR(d, ctrl->intr_regs.intc_intr_clear_0, 0xFFFFFFFF);
-        WRITE_INTC_INTR(d, ctrl->intr_regs.intc_intr_clear_1, 0xFFFFFFFF);
+        if (stat == 0) {
+            WRITE_INTC_INTR(d, ctrl->intr_regs.intc_intr_clear_0, 0xFFFFFFFF);
+            WRITE_INTC_INTR(d, ctrl->intr_regs.intc_intr_clear_1, 0xFFFFFFFF);
+        }
     }
-
-    res = &_bde_inst_resource[ctrl->inst];
 
     lkbde_irq_mask_get(d, &mask, &fmask);
 
@@ -341,9 +415,9 @@ _cmicx_interrupt(bde_ctrl_t *ctrl)
                     break;
                 }
             }
-
+            /* No pending interrupts */
             if (ind >= INTC_INTR_REG_NUM) {
-                return;
+                return -1;
             }
         }
     }
@@ -373,6 +447,20 @@ _cmicx_interrupt(bde_ctrl_t *ctrl)
         } else {
             WRITE_INTC_INTR(d, ctrl->intr_regs.intc_intr_enable_base + 4*ind, 0);
         }
+    }
+    return 0;
+}
+
+static void
+_cmicx_interrupt(bde_ctrl_t *ctrl)
+{
+    bde_inst_resource_t *res;
+
+    intr_count++;
+
+    res = &_bde_inst_resource[ctrl->inst];
+    if (_cmicx_interrupt_prepare(ctrl) < 0) {
+        return;
     }
 
     /* Notify */
@@ -754,17 +842,31 @@ _intr_regs_init(bde_ctrl_t *ctrl, int hx5_intr)
     if (hx5_intr) {
         ctrl->intr_regs.intc_intr_status_base = HX5_INTC_INTR_STATUS_BASE;
         ctrl->intr_regs.intc_intr_enable_base = HX5_INTC_INTR_ENABLE_BASE;
+        ctrl->intr_regs.intc_intr_raw_status_base = HX5_INTC_INTR_RAW_STATUS_BASE;
         ctrl->intr_regs.intc_intr_clear_0 = HX5_PAXB_0_PAXB_IC_INTRCLR_0;
         ctrl->intr_regs.intc_intr_clear_1 = HX5_PAXB_0_PAXB_IC_INTRCLR_1;
         ctrl->intr_regs.intc_intr_clear_mode_0 = HX5_PAXB_0_PAXB_IC_INTRCLR_MODE_0;
         ctrl->intr_regs.intc_intr_clear_mode_1 = HX5_PAXB_0_PAXB_IC_INTRCLR_MODE_1;
+        ctrl->intr_regs.intc_intr_status = HX5_PAXB_0_PAXB_INTR_STATUS;
+        ctrl->intr_regs.intc_intr_pacing_ctrl = HX5_PAXB_0_PAXB_IC_INTR_PACING_CTRL;
+        ctrl->intr_regs.intc_intr_clear_delay_unit = HX5_PAXB_0_PAXB_INTRCLR_DELAY_UNIT;
+        ctrl->intr_regs.intc_intr_clear_delay_base = HX5_PAXB_0_PAXB_IC_INTRCLR_DELAY_BASE;
+        ctrl->intr_regs.intc_intr_pcie_err_status = HX5_PAXB_0_PCIE_ERROR_STATUS;
+
     } else {
         ctrl->intr_regs.intc_intr_status_base = INTC_INTR_STATUS_BASE;
+        ctrl->intr_regs.intc_intr_raw_status_base = INTC_INTR_RAW_STATUS_BASE;
         ctrl->intr_regs.intc_intr_enable_base = INTC_INTR_ENABLE_BASE;
         ctrl->intr_regs.intc_intr_clear_0 = PAXB_0_PAXB_IC_INTRCLR_0;
         ctrl->intr_regs.intc_intr_clear_1 = PAXB_0_PAXB_IC_INTRCLR_1;
         ctrl->intr_regs.intc_intr_clear_mode_0 = PAXB_0_PAXB_IC_INTRCLR_MODE_0;
         ctrl->intr_regs.intc_intr_clear_mode_1 = PAXB_0_PAXB_IC_INTRCLR_MODE_1;
+        ctrl->intr_regs.intc_intr_status = PAXB_0_PAXB_INTR_STATUS;
+        ctrl->intr_regs.intc_intr_pacing_ctrl = PAXB_0_PAXB_IC_INTR_PACING_CTRL;
+        ctrl->intr_regs.intc_intr_clear_delay_unit = PAXB_0_PAXB_INTRCLR_DELAY_UNIT;
+        ctrl->intr_regs.intc_intr_clear_delay_base = PAXB_0_PAXB_IC_INTRCLR_DELAY_BASE;
+        ctrl->intr_regs.intc_intr_pcie_err_status = PAXB_0_PCIE_ERROR_STATUS;
+
     }
 }
 
@@ -884,6 +986,8 @@ _devices_init(int d)
         case BCM56276_DEVICE_ID:
         case BCM56277_DEVICE_ID:
         case BCM56278_DEVICE_ID:
+        case BCM56279_DEVICE_ID:
+        case BCM56575_DEVICE_ID:
             ctrl->isr = (isr_f)_cmicx_interrupt;
             if (ctrl->dev_type & BDE_AXI_DEV_TYPE) {
                 if (!ihost_intr_enable_base) {
@@ -934,6 +1038,7 @@ _devices_init(int d)
           case J2C_DEVICE_ID:
           case J2C_2ND_DEVICE_ID:
           case Q2A_DEVICE_ID:
+          case Q2U_DEVICE_ID:
           case J2P_DEVICE_ID:
 #endif
 #ifdef BCM_DNXF_SUPPORT
@@ -999,6 +1104,10 @@ _init(void)
     for (i = 0; i < user_bde->num_devices(BDE_ALL_DEVICES); i++) {
         res->inst_id |= (1 << i);
         _devices_init(i);
+    }
+
+    if (intr_timeout > 0) {
+        gprintk("Interruptible wait timeout = %d msecs\n", intr_timeout);
     }
 
     return 0;
@@ -1338,14 +1447,6 @@ _ioctl(unsigned int cmd, unsigned long arg)
         }
         if (_devices[io.dev].dev_type & BDE_SWITCH_DEV_TYPE) {
             if (_devices[io.dev].isr && !_devices[io.dev].enabled) {
-                bde_ctrl_t *ctrl;
-                ctrl = &_devices[io.dev];
-                if ((ctrl->isr == (isr_f)_cmicx_interrupt)  &&
-                    (ctrl->dev_type & BDE_PCI_DEV_TYPE)) {
-                    /* Set MSI mode to SW clear vs auto clear */
-                    WRITE_INTC_INTR(io.dev, ctrl->intr_regs.intc_intr_clear_mode_0, 0x0);
-                    WRITE_INTC_INTR(io.dev, ctrl->intr_regs.intc_intr_clear_mode_1, 0x0);
-                }
                 user_bde->interrupt_connect(io.dev,
                                             _devices[io.dev].isr,
                                             _devices+io.dev);
@@ -1382,8 +1483,34 @@ _ioctl(unsigned int cmd, unsigned long arg)
                                atomic_read(&res->intr) != 0, 100);
 
 #else
-            wait_event_interruptible(res->intr_wq,
-                                     atomic_read(&res->intr) != 0);
+            /* CMICX Devices */
+            if ((_devices[io.dev].dev_type & BDE_PCI_DEV_TYPE) &&
+                (_devices[io.dev].isr == (isr_f)_cmicx_interrupt)  &&
+                (intr_timeout > 0)) {
+                unsigned long t_jiffies;
+                int err=0;
+                t_jiffies =  msecs_to_jiffies(intr_timeout);
+                err = wait_event_interruptible_timeout(res->intr_wq,
+                             atomic_read(&res->intr) != 0,
+                             t_jiffies);
+                /* Timeout happend and condition not set */
+                if (err == 0) {
+                    bde_ctrl_t *ctrl;
+                    ctrl = &_devices[io.dev];
+                    ctrl->timeout_count++;
+                    if (debug >= 1) {
+                        gprintk("Timeout happend and condition not set\n");
+                    }
+                    dump_interrupt_regs(ctrl, io.dev);
+                } else if (err == -ERESTARTSYS) {
+                    if (debug >= 1) {
+                       gprintk("Interrupted by Signal\n");
+                    }
+                }
+            } else {
+                wait_event_interruptible(res->intr_wq,
+                                      atomic_read(&res->intr) != 0);
+            }
 #endif
             /* 
              * Even if we get multiple interrupts, we 
@@ -1397,6 +1524,7 @@ _ioctl(unsigned int cmd, unsigned long arg)
 #else
             wait_event_interruptible(_ether_interrupt_wq,     
                                      atomic_read(&_ether_interrupt_has_taken_place) != 0);
+
 #endif
             /* 
              * Even if we get multiple interrupts, we 

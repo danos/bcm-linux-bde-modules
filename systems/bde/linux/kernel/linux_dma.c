@@ -78,9 +78,10 @@
 /* allocation types/methods for the DMA memory pool */
 #define ALLOC_TYPE_CHUNK 0 /* use small allocations and join them */
 #define ALLOC_TYPE_API 1 /* use one allocation */
+
 #if _SIMPLE_MEMORY_ALLOCATION_
 #include <linux/dma-mapping.h>
-#if defined(IPROC_CMICD) && defined(CONFIG_CMA) && defined(CONFIG_CMA_SIZE_MBYTES)
+#if defined(CONFIG_CMA) && defined(CONFIG_CMA_SIZE_MBYTES)
 #define DMA_MAX_ALLOC_SIZE (CONFIG_CMA_SIZE_MBYTES * 1024 * 1024)
 #else
 #define DMA_MAX_ALLOC_SIZE (1 << (MAX_ORDER - 1 + PAGE_SHIFT)) /* Maximum size the kernel can allocate in one allocation */
@@ -88,6 +89,7 @@
 #endif /* _SIMPLE_MEMORY_ALLOCATION_ */
 
 #if _SIMPLE_MEMORY_ALLOCATION_ == 1
+/* Use Linux DMA API to allocate contiguous memory */
 #define ALLOC_METHOD_DEFAULT ALLOC_TYPE_API
 #if defined(__arm__)
 #define USE_DMA_MMAP_COHERENT

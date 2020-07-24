@@ -34,7 +34,8 @@
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,5,0)
 #include <linux/config.h>
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,1,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,32)
+/* The version kconfig.h became available in. */
 #include <linux/kconfig.h>
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)

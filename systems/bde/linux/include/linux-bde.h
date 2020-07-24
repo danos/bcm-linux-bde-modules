@@ -256,13 +256,6 @@ extern int lkbde_cpu_pci_register(int d);
 #endif
 #endif
 
-/* Don't use _SIMPLE_MEMORY_ALLOCATION_ method for newer kernel than 3.10.0 */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0))
-#ifndef _SIMPLE_MEMORY_ALLOCATION_
-#define _SIMPLE_MEMORY_ALLOCATION_ 0
-#endif
-#endif
-
 /* Allocation via dma_alloc_coherent is turned off by default */
 #ifndef _SIMPLE_MEMORY_ALLOCATION_
 #define _SIMPLE_MEMORY_ALLOCATION_ 9 /* compile in the allocation method, but do not use it by default */

@@ -62,7 +62,7 @@ endif
 ifeq ($(LINUX_MAKE_SHARED_LIB),1)
 	$(CC) -shared -Wl,-soname,${lib}.${LIBSUFFIX}${EXTRA_LIB_LDFLAGS} -o ${targetlib} ${BOBJS} -lc
 else
-	${Q}cd $(dir $(word 1,${BOBJS}));$(AR) ${ARFLAGS} $@ $(sort $(notdir ${BOBJS}))
+	$(AR) ${ARFLAGS} $@ $(sort ${BOBJS})
 endif
 
 endif	# !Borland
