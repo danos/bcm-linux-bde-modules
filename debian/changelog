@@ -1,11 +1,11 @@
-bcm-linux-bde-modules (6.5.20-1vyatta1) UNRELEASED; urgency=medium
+bcm-linux-bde-modules (6.5.20-1vyatta1) unstable; urgency=medium
 
   * Import upstream version 6.5.18
   * Import upstream version 6.5.19
   * Import upstream version 6.5.20
   * Refresh patches
 
- -- Robert Shearman <robert.shearman@att.com>  Fri, 24 Jul 2020 10:45:45 +0100
+ -- Robert Shearman <robert.shearman@att.com>  Tue, 11 Aug 2020 09:33:43 +0100
 
 bcm-linux-bde-modules (6.5.17-1vyatta2) unstable; urgency=medium
 
