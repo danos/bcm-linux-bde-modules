@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Vyatta Package Maintainers <DL-vyatta-help@att.com>
 Build-Depends:
  debhelper (>= 9),
- dh-signobs,
+ dh-signobs <!noobs>,
  linux-vyatta-kbuild | linux-headers-amd64 [amd64] | linux-headers
 Standards-Version: 3.9.8
 

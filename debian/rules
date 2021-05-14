@@ -26,10 +26,18 @@ ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
 endif
 
 build: debian/control.modules
+ifeq ($(filter noobs,$(DEB_BUILD_PROFILES)),)
 	dh $@ --with signobs
+else
+	dh $@
+endif
 
 %:
+ifeq ($(filter noobs,$(DEB_BUILD_PROFILES)),)
 	dh $@ --with signobs
+else
+	dh $@
+endif
 
 debian/control.modules: debian/control.modules.in
 	@if [ x"$(KVERS)" = x ] ; then \
