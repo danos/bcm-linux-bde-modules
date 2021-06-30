@@ -7,3 +7,4 @@ add-dpp-dnx-support.patch
 fix-mem-alloc.patch
 alternate-defaults-on-hurricane3.patch
 fix-missing-have-unlocked-ioctl.patch
+use-ioremap-instead-of-ioremap-nocache.patch

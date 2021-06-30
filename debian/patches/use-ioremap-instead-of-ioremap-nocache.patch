@@ -1,0 +1,22 @@
+--- a/systems/bde/linux/include/linux_dma.h
++++ b/systems/bde/linux/include/linux_dma.h
+@@ -38,7 +38,7 @@
+ /* ioremap is broken in kernel */
+ #define IOREMAP(addr, size) ((void *)KSEG1ADDR(addr))
+ #else
+-#define IOREMAP(addr, size) ioremap_nocache(addr, size)
++#define IOREMAP(addr, size) ioremap(addr, size)
+ #endif
+ 
+ #if defined (__mips__)
+--- a/systems/bde/linux/user/kernel/linux-user-bde.c
++++ b/systems/bde/linux/user/kernel/linux-user-bde.c
+@@ -118,7 +118,7 @@ be made.
+ #define HX5_INTC_INTR_STATUS_BASE          (HX5_INTC_INTR_STATUS_REG0)
+ #define HX5_INTC_INTR_RAW_STATUS_BASE      (HX5_INTC_INTR_RAW_STATUS_REG0)
+ 
+-#define IOREMAP(addr, size)                ioremap_nocache(addr, size)
++#define IOREMAP(addr, size)                ioremap(addr, size)
+ 
+ #define HX5_IHOST_GICD_ISENABLERN_0        (0x10781100)
+ #define HX5_IHOST_GICD_ISENABLERN_1        (0x10781104)
