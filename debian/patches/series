@@ -9,3 +9,4 @@ alternate-defaults-on-hurricane3.patch
 fix-missing-have-unlocked-ioctl.patch
 use-ioremap-instead-of-ioremap-nocache.patch
 fix-missing-dma-cache-sync.patch
+proc-create-takes-proc-ops.patch
