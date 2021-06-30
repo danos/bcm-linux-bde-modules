@@ -1,0 +1,13 @@
+--- a/systems/linux/kernel/modules/shared/gmodule.c
++++ b/systems/linux/kernel/modules/shared/gmodule.c
+@@ -28,6 +28,10 @@
+ #include <linux/init.h>
+ #include <linux/seq_file.h>
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,8,0)
++#define HAVE_UNLOCKED_IOCTL 1
++#endif
++
+ /* Module Vector Table */
+ static gmodule_t* _gmodule = NULL;
+ 
