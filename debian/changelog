@@ -1,3 +1,14 @@
+bcm-linux-bde-modules (6.5.20-1vyatta3) unstable; urgency=medium
+
+  * Detect HAVE_UNLOCKED_IOCTL using version (Bugfix: VRVDR-55062)
+  * Use ioremap instead of ioremap_noncache (Bugfix: VRVDR-55062)
+  * Remove dma_cache_sync (Bugfix: VRVDR-55062)
+  * Convert _gmodule_proc_fops to a struct proc_ps (Bugfix: VRVDR-55062)
+  * Export KBUILD_EXTRA_SYMBOLS when building external modules
+    (Bugfix: VRVDR-55062)
+
+ -- Charles (Chas) Williams <ciwillia@vyatta.att-mail.com>  Wed, 14 Jul 2021 15:02:31 -0400
+
 bcm-linux-bde-modules (6.5.20-1vyatta2) unstable; urgency=medium
 
   [ James Wheatley ]
